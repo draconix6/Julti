@@ -266,7 +266,7 @@ public class MinecraftInstance {
                 this.resetPressed = false;
             }
         }, 5000);
-        PluginEvents.runEvents(PluginEvents.InstanceEventType.RESET, this);
+        PluginEvents.InstanceEventType.RESET.runAll(this);
     }
 
     /**
@@ -304,11 +304,10 @@ public class MinecraftInstance {
                 }
             }
         }
-        if (!options.autoFullscreen && doingSetup) {
+        if (doingSetup) {
             Julti.doLater(() -> this.ensureResettingWindowState(false));
-        }
-        if (!doingSetup) {
-            PluginEvents.runEvents(PluginEvents.InstanceEventType.ACTIVATE, this);
+        } else {
+            PluginEvents.InstanceEventType.ACTIVATE.runAll(this);
         }
     }
 
@@ -323,7 +322,7 @@ public class MinecraftInstance {
                 this.onWorldLoad();
                 break;
         }
-        PluginEvents.runEvents(PluginEvents.InstanceEventType.STATE_CHANGE, this);
+        PluginEvents.InstanceEventType.STATE_CHANGE.runAll(this);
     }
 
     public int getResetSortingNum() {
@@ -488,11 +487,11 @@ public class MinecraftInstance {
         try {
             String multiMCPath = JultiOptions.getJultiOptions().multiMCPath;
             if (!multiMCPath.isEmpty()) {
-                String cmd;
+                String[] cmd;
                 if (offlineName == null) {
-                    cmd = multiMCPath.trim() + " --launch \"" + this.getMMCInstanceFolderName() + "\"";
+                    cmd = new String[]{multiMCPath.trim(), "--launch", this.getMMCInstanceFolderName()};
                 } else {
-                    cmd = multiMCPath.trim() + " --launch \"" + this.getMMCInstanceFolderName() + "\" -o -n " + offlineName;
+                    cmd = new String[]{multiMCPath.trim(), "--launch", this.getMMCInstanceFolderName(), "-o", "-n", offlineName};
                 }
                 Runtime.getRuntime().exec(cmd);
 

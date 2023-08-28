@@ -80,6 +80,12 @@ public abstract class ResetManager {
         if (sceneSize == null) {
             sceneSize = new Dimension(options.playingWindowSize[0], options.playingWindowSize[1]);
         }
+        if (bounds.width == 0) {
+            bounds.width = 1920;
+        }
+        if (bounds.height == 0) {
+            bounds.height = 1080;
+        }
         point.translate(-bounds.x, -bounds.y);
         Point posOnScene = new Point(point);
         if (!sceneSize.equals(bounds.getSize())) {
@@ -112,11 +118,11 @@ public abstract class ResetManager {
         int totalColumns;
 
         if (options.autoCalcWallSize) {
-            totalRows = (int) Math.ceil(Math.sqrt(instances.size()));
-            totalColumns = (int) Math.ceil(instances.size() / (float) totalRows);
+            totalRows = (int) Math.max(1, Math.ceil(Math.sqrt(instances.size())));
+            totalColumns = (int) Math.max(1, Math.ceil(instances.size() / (float) totalRows));
         } else {
-            totalRows = options.overrideRowsAmount;
-            totalColumns = options.overrideColumnsAmount;
+            totalRows = Math.max(1, options.overrideRowsAmount);
+            totalColumns = Math.max(1, options.overrideColumnsAmount);
         }
 
         int instanceInd = instances.indexOf(instance);
@@ -144,7 +150,7 @@ public abstract class ResetManager {
         return this.getInstancePosition(instance, null);
     }
 
-    public void tick() {
+    public void tick(long cycles) {
     }
 
     public void onMissingInstancesUpdate() {
