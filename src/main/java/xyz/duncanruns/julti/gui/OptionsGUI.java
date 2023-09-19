@@ -8,10 +8,7 @@ import xyz.duncanruns.julti.resetting.DynamicWallResetManager;
 import xyz.duncanruns.julti.resetting.MultiResetManager;
 import xyz.duncanruns.julti.resetting.ResetHelper;
 import xyz.duncanruns.julti.script.ScriptManager;
-import xyz.duncanruns.julti.util.DoAllFastUtil;
-import xyz.duncanruns.julti.util.GUIUtil;
-import xyz.duncanruns.julti.util.MonitorUtil;
-import xyz.duncanruns.julti.util.SleepBGUtil;
+import xyz.duncanruns.julti.util.*;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -78,22 +75,27 @@ public class OptionsGUI extends JFrame {
     private void addComponentsExperimental() {
         JPanel panel = this.createNewOptionsPanel("Experimental");
 
+        JultiOptions options = JultiOptions.getJultiOptions();
+
+        panel.add(GUIUtil.leftJustify(new JLabel("Experimental Settings")));
+        panel.add(GUIUtil.createSpacer());
+        panel.add(GUIUtil.createSeparator());
+
+        panel.add(GUIUtil.createSpacer());
+        panel.add(GUIUtil.leftJustify(GUIUtil.createCheckBoxFromOption("Auto Fullscreen", "autoFullscreen", b -> this.reload())));
+
+        if (options.autoFullscreen) {
+            panel.add(GUIUtil.createSpacer());
+            panel.add(GUIUtil.leftJustify(GUIUtil.createCheckBoxFromOption("Fullscreen Before Unpause (Could fix mouse issues)", "fullscreenBeforeUnpause")));
+
+            panel.add(GUIUtil.createSpacer());
+            panel.add(GUIUtil.leftJustify(GUIUtil.createCheckBoxFromOption("Use Playing Size w/ Fullscreen", "usePlayingSizeWithFullscreen", b -> this.reload())));
+        }
         panel.add(GUIUtil.createSpacer());
         panel.add(GUIUtil.createSeparator());
 
         panel.add(GUIUtil.createSpacer());
         panel.add(GUIUtil.leftJustify(GUIUtil.createCheckBoxFromOption("Show Debug Messages", "showDebug")));
-
-        panel.add(GUIUtil.createSpacer());
-        panel.add(GUIUtil.leftJustify(GUIUtil.createCheckBoxFromOption("Auto Fullscreen", "autoFullscreen")));
-
-        panel.add(GUIUtil.createSpacer());
-        panel.add(GUIUtil.leftJustify(GUIUtil.createCheckBoxFromOption("Use Playing Size w/ Fullscreen", "usePlayingSizeWithFullscreen", b -> this.reload())));
-
-        if (JultiOptions.getJultiOptions().usePlayingSizeWithFullscreen) {
-            panel.add(GUIUtil.createSpacer());
-            panel.add(GUIUtil.leftJustify(GUIUtil.createCheckBoxFromOption("Use Maximize w/ Fullscreen", "useMaximizeWithFullscreen")));
-        }
 
         panel.add(GUIUtil.createSpacer());
         panel.add(GUIUtil.leftJustify(GUIUtil.createCheckBoxFromOption("Pie Chart On Load (Illegal for normal runs)", "pieChartOnLoad")));
@@ -109,6 +111,18 @@ public class OptionsGUI extends JFrame {
 
         panel.add(GUIUtil.createSpacer());
         panel.add(GUIUtil.leftJustify(GUIUtil.createCheckBoxFromOption("Allow Reset During Generating", "allowResetDuringGenerating")));
+
+        panel.add(GUIUtil.createSpacer());
+        panel.add(GUIUtil.createSeparator());
+
+        panel.add(GUIUtil.createSpacer());
+        panel.add(GUIUtil.leftJustify(GUIUtil.createCheckBoxFromOption("Use Freeze Filter", "useFreezeFilter", b -> this.reload())));
+        if (options.useFreezeFilter) {
+            panel.add(GUIUtil.createSpacer());
+            panel.add(GUIUtil.leftJustify(GUIUtil.createValueChangerButton("freezePercent", "Freeze Filter Activation Percent", this, "%")));
+        }
+        panel.add(GUIUtil.createSpacer());
+        panel.add(GUIUtil.leftJustify(new JLabel("This option requires the OBS Freeze Filter plugin.")));
     }
 
     private void addComponentsSound() {
@@ -175,6 +189,19 @@ public class OptionsGUI extends JFrame {
             return;
         }
         panel.add(GUIUtil.createSpacer());
+        panel.add(GUIUtil.leftJustify(GUIUtil.getButtonWithMethod(new JButton("Set Defaults"), e -> {
+            JultiOptions defaults = JultiOptions.getDefaults();
+            options.threadsPlaying = defaults.threadsPlaying;
+            options.threadsPrePreview = defaults.threadsPrePreview;
+            options.threadsStartPreview = defaults.threadsStartPreview;
+            options.threadsPreview = defaults.threadsPreview;
+            options.threadsWorldLoaded = defaults.threadsWorldLoaded;
+            options.threadsLocked = defaults.threadsLocked;
+            options.threadsBackground = defaults.threadsBackground;
+            options.affinityBurst = defaults.affinityBurst;
+            this.reload();
+        })));
+        panel.add(GUIUtil.createSpacer());
 
         panel.add(GUIUtil.leftJustify(new JLabel("Affinity Threads:")));
         panel.add(GUIUtil.leftJustify(GUIUtil.createThreadsSlider("Currently Playing", "threadsPlaying")));
@@ -197,7 +224,7 @@ public class OptionsGUI extends JFrame {
         panel.add(GUIUtil.createSeparator());
         panel.add(GUIUtil.createSpacer());
 
-        panel.add(GUIUtil.leftJustify(GUIUtil.createValueChangerButton("resetCounter", "Reset Counter", this)));
+        panel.add(GUIUtil.leftJustify(GUIUtil.createValueChangerButton("resetCounter", "Reset Counter", this, "", ResetCounter::updateFiles)));
         panel.add(GUIUtil.createSpacer());
 
         panel.add(GUIUtil.createSeparator());
@@ -223,6 +250,9 @@ public class OptionsGUI extends JFrame {
             panel.add(GUIUtil.createSpacer());
         }
 
+        panel.add(GUIUtil.leftJustify(GUIUtil.createValueChangerButton("launchDelay", "Delay Between Instance Launches", this, "ms")));
+        panel.add(GUIUtil.createSpacer());
+
         panel.add(GUIUtil.createSeparator());
         panel.add(GUIUtil.createSpacer());
 
@@ -230,8 +260,6 @@ public class OptionsGUI extends JFrame {
             if (!b) {
                 Julti.waitForExecute(() -> {
                     options.autoFullscreen = false;
-                    options.usePlayingSizeWithFullscreen = false;
-                    options.useMaximizeWithFullscreen = false;
                     options.showDebug = false;
                     options.pieChartOnLoad = false;
                     options.preventWindowNaming = false;
@@ -347,9 +375,9 @@ public class OptionsGUI extends JFrame {
     }
 
     private void addComponentsHotkey() {
-        JultiOptions options = JultiOptions.getJultiOptions();
-
         JPanel panel = this.createNewOptionsPanel("Hotkeys");
+
+        JultiOptions options = JultiOptions.getJultiOptions();
 
         panel.add(GUIUtil.leftJustify(new JLabel("Hotkeys")));
         panel.add(GUIUtil.createSpacer());
@@ -603,8 +631,16 @@ public class OptionsGUI extends JFrame {
         }
         panel.add(GUIUtil.createSpacer());
 
-        panel.add(GUIUtil.leftJustify(GUIUtil.createCheckBoxFromOption("Use Borderless", "useBorderless")));
+        panel.add(GUIUtil.leftJustify(GUIUtil.createCheckBoxFromOption("Use Borderless", "useBorderless", b -> this.reload())));
         panel.add(GUIUtil.createSpacer());
+
+        if (!options.useBorderless) {
+            panel.add(GUIUtil.leftJustify(GUIUtil.createCheckBoxFromOption("Maximize When Playing", "maximizeWhenPlaying", b -> this.reload())));
+            panel.add(GUIUtil.createSpacer());
+
+            panel.add(GUIUtil.leftJustify(GUIUtil.createCheckBoxFromOption("Maximize When Resetting", "maximizeWhenResetting", b -> this.reload())));
+            panel.add(GUIUtil.createSpacer());
+        }
 
         panel.add(GUIUtil.createSeparator());
         panel.add(GUIUtil.createSpacer());
@@ -639,7 +675,8 @@ public class OptionsGUI extends JFrame {
             }
             MonitorUtil.Monitor monitor = sortedMonitors.get(ans);
             Julti.waitForExecute(() -> {
-                options.windowPos = monitor.position;
+                options.windowPos = monitor.centerPosition;
+                options.windowPosIsCenter = true;
                 options.playingWindowSize = monitor.size;
             });
             windowOptions.reload();
@@ -661,6 +698,7 @@ public class OptionsGUI extends JFrame {
         Julti.doLater(() -> {
             OBSStateManager.getOBSStateManager().tryOutputLSInfo();
             SleepBGUtil.disableLock();
+            MistakesUtil.checkStartupMistakes();
             DoAllFastUtil.doAllFast(minecraftInstance -> minecraftInstance.ensureResettingWindowState(false));
         });
     }

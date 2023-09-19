@@ -53,14 +53,20 @@ public final class JultiOptions {
     public float lockedInstanceSpace = 16.666668f;
     public boolean dwReplaceLocked = true;
     public boolean doDirtCovers = false;
+    public boolean useFreezeFilter = false;
+    public int freezePercent = 80;
 
     // Window
     public boolean letJultiMoveWindows = true;
-    public boolean useBorderless = true;
+    public boolean useBorderless = false;
+    public boolean maximizeWhenPlaying = true;
+    public boolean maximizeWhenResetting = true;
 
-    public int[] windowPos = new int[]{0, 0};
     public int[] playingWindowSize = MonitorUtil.getPrimaryMonitor().size;
-    public int[] resettingWindowSize = MonitorUtil.getPrimaryMonitor().size;
+    public int[] resettingWindowSize = this.playingWindowSize;
+    public int[] windowPos = MonitorUtil.getPrimaryMonitor().centerPosition;
+    public boolean windowPosIsCenter = true;
+
     public boolean prepareWindowOnLock = false;
 
     // Hotkeys
@@ -95,19 +101,20 @@ public final class JultiOptions {
     public String multiMCPath = "";
     public boolean launchOffline = false;
     public String launchOfflineName = "Instance*";
+    public long launchDelay = 500;
     public int resetCounter = 0;
 
 
     // Affinity
     public boolean useAffinity = true;
     public int threadsPlaying = Math.max(1, MAX_THREADS);
-    public int threadsPrePreview = Math.max(1, MAX_THREADS);
-    public int threadsStartPreview = Math.max(1, MAX_THREADS * 28 / 32);
-    public int threadsPreview = Math.max(1, MAX_THREADS * 11 / 32);
-    public int threadsWorldLoaded = Math.max(1, MAX_THREADS * 8 / 32);
-    public int threadsLocked = Math.max(1, MAX_THREADS);
-    public int threadsBackground = Math.max(1, MAX_THREADS * 8 / 32);
-    public int affinityBurst = 300;
+    public int threadsPrePreview = this.threadsPlaying;
+    public int threadsStartPreview = this.threadsPlaying;
+    public int threadsPreview = (int) Math.floor(Math.min(MAX_THREADS, Math.max(4, 0.25f * MAX_THREADS)));
+    public int threadsWorldLoaded = this.threadsPreview;
+    public int threadsLocked = this.threadsPlaying;
+    public int threadsBackground = (int) Math.floor(Math.min(MAX_THREADS, Math.max(4, 0.25f * MAX_THREADS)));
+    public int affinityBurst = 1000;
 
     // Sounds
     public String singleResetSound = JultiOptions.getJultiDir().resolve("sounds").resolve("click.wav").toAbsolutePath().toString();
@@ -123,8 +130,8 @@ public final class JultiOptions {
     public boolean enableExperimentalOptions = false;
     public boolean showDebug = false;
     public boolean autoFullscreen = false;
-    public boolean usePlayingSizeWithFullscreen = false;
-    public boolean useMaximizeWithFullscreen = false;
+    public boolean fullscreenBeforeUnpause = true;
+    public boolean usePlayingSizeWithFullscreen = true;
     public boolean pieChartOnLoad = false;
     public boolean preventWindowNaming = false;
     public boolean alwaysOnTopProjector = false;
@@ -140,7 +147,7 @@ public final class JultiOptions {
 
     public JultiOptions(Path location) {
         this.location = location;
-        this.profileName = FilenameUtils.removeExtension(location.getFileName().toString());
+        this.profileName = location == null ? null : FilenameUtils.removeExtension(location.getFileName().toString());
     }
 
     public static JultiOptions getJultiOptions() {
@@ -239,6 +246,10 @@ public final class JultiOptions {
         return resolve.toFile().delete();
     }
 
+    public static JultiOptions getDefaults() {
+        return new JultiOptions(null);
+    }
+
     public boolean tryLoad() {
         if (Files.isRegularFile(this.location)) {
             try {
@@ -286,6 +297,18 @@ public final class JultiOptions {
         if (oldOptions.obsWindowNameFormat != null) {
             changes.add("The obsWindowNameFormat has been removed and replaced by a better detection system. If you were not using OBS to run your wall, you can enable the new custom wall option in Julti options.");
             this.customWallNameFormat = oldOptions.obsWindowNameFormat;
+        }
+
+        if (oldOptions.useMaximizeWithFullscreen != null) {
+            changes.add("Window management options have had major changes, please ensure things are still working correctly.");
+
+            // Update old window options to new ones
+            this.maximizeWhenResetting = false;
+            this.windowPosIsCenter = false;
+
+            if (this.autoFullscreen) {
+                this.maximizeWhenPlaying = oldOptions.useMaximizeWithFullscreen;
+            }
         }
 
         if (oldOptions.resetMode != null) {
@@ -485,5 +508,6 @@ public final class JultiOptions {
         public Boolean cleanWall = null;
         public String obsWindowNameFormat = null;
         public Integer resetMode = null;
+        public Boolean useMaximizeWithFullscreen = null;
     }
 }

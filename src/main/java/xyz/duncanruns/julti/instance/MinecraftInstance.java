@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -291,6 +292,10 @@ public class MinecraftInstance {
 
         if (this.stateTracker.isCurrentState(InstanceState.INWORLD)) {
             if (!doingSetup) {
+                if (options.autoFullscreen && options.fullscreenBeforeUnpause) {
+                    this.presser.pressKey(this.gameOptions.fullscreenKey);
+                    this.waitForFullscreen();
+                }
                 if ((options.unpauseOnSwitch || options.coopMode)) {
                     this.presser.pressEsc();
                     this.presser.pressEsc();
@@ -299,7 +304,7 @@ public class MinecraftInstance {
                 if (options.coopMode) {
                     this.openToLan(true);
                 }
-                if (options.autoFullscreen) {
+                if (options.autoFullscreen && !options.fullscreenBeforeUnpause) {
                     this.presser.pressKey(this.gameOptions.fullscreenKey);
                 }
             }
@@ -421,6 +426,10 @@ public class MinecraftInstance {
 
     public boolean shouldCoverWithDirt() {
         return this.resetPressed || this.stateTracker.shouldCoverWithDirt();
+    }
+
+    public boolean shouldFreeze() {
+        return this.stateTracker.shouldFreeze();
     }
 
     public boolean isResetPressed() {
@@ -549,7 +558,8 @@ public class MinecraftInstance {
     }
 
     private void ensureWindowState(boolean useBorderless, boolean maximize, Rectangle bounds, boolean offload) {
-        if (!JultiOptions.getJultiOptions().letJultiMoveWindows) {
+        JultiOptions options = JultiOptions.getJultiOptions();
+        if (!options.letJultiMoveWindows) {
             return;
         }
 
@@ -563,15 +573,14 @@ public class MinecraftInstance {
             WindowStateUtil.undoHwndBorderless(this.hwnd);
         }
 
-        if (currentlyMaximized && !maximize) {
-            WindowStateUtil.restoreHwnd(this.hwnd);
-        } else if (maximize && !currentlyMaximized) {
-            WindowStateUtil.maximizeHwnd(this.hwnd);
-        }
-
-        // If we are maximizing, there is no point trying to set size/position
-        if (maximize) {
-            return;
+        if (currentlyMaximized) {
+            if (maximize) {
+                // If its currently maximized and staying maximized, return
+                return;
+            } else {
+                // If its currently maximized but not staying maximized, restore and continue to window size
+                WindowStateUtil.restoreHwnd(this.hwnd);
+            }
         }
 
         if (!currentBounds.equals(bounds)) {
@@ -581,26 +590,32 @@ public class MinecraftInstance {
                 WindowStateUtil.setHwndRectangle(this.hwnd, bounds);
             }
         }
+
+        if (maximize) {
+            WindowStateUtil.maximizeHwnd(this.hwnd);
+        }
     }
 
     public void ensureResettingWindowState(boolean offload) {
         JultiOptions options = JultiOptions.getJultiOptions();
+        Rectangle bounds = new Rectangle(options.windowPos[0], options.windowPos[1], options.resettingWindowSize[0], options.resettingWindowSize[1]);
         this.ensureWindowState(
                 options.useBorderless,
                 // maximize if
-                !options.useBorderless && // We aren't using borderless and
-                        (!options.autoFullscreen || options.usePlayingSizeWithFullscreen) && // We aren't using fullscreen (except if we override it) and
-                        options.resettingWindowSize == options.playingWindowSize, // there's a difference in the window sizes in the first place
-                new Rectangle(options.windowPos[0], options.windowPos[1], options.resettingWindowSize[0], options.resettingWindowSize[1]),
+                (options.maximizeWhenResetting && !options.useBorderless),
+                options.windowPosIsCenter ? WindowStateUtil.withTopLeftToCenter(bounds) : bounds,
                 offload);
     }
 
     public void ensurePlayingWindowState(boolean offload) {
+        String a = UnaryOperator.<String>identity().apply("Mario");
         JultiOptions options = JultiOptions.getJultiOptions();
+        Rectangle bounds = new Rectangle(options.windowPos[0], options.windowPos[1], options.playingWindowSize[0], options.playingWindowSize[1]);
+        boolean maximize = (options.maximizeWhenPlaying && !options.useBorderless) && (!options.autoFullscreen || options.usePlayingSizeWithFullscreen);
         this.ensureWindowState(
                 options.useBorderless,
-                (!options.useBorderless) && (!options.autoFullscreen || options.useMaximizeWithFullscreen),
-                new Rectangle(options.windowPos[0], options.windowPos[1], options.playingWindowSize[0], options.playingWindowSize[1]),
+                maximize,
+                options.windowPosIsCenter ? WindowStateUtil.withTopLeftToCenter(bounds) : bounds,
                 offload);
         this.windowStateChangedToPlaying = true;
     }
@@ -654,6 +669,13 @@ public class MinecraftInstance {
             if (!this.getStateTracker().tryUpdate()) {
                 Julti.log(Level.ERROR, "Failed to update state for instance " + this.getName() + "!");
             }
+        }
+    }
+
+    public void waitForFullscreen() {
+        int i = 0;
+        while (!WindowStateUtil.isHwndBorderless(this.hwnd) && (i++ < 50)) {
+            sleep(5);
         }
     }
 

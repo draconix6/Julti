@@ -1,6 +1,7 @@
 package xyz.duncanruns.julti.command;
 
 import org.apache.logging.log4j.Level;
+import xyz.duncanruns.julti.Julti;
 import xyz.duncanruns.julti.cancelrequester.CancelRequester;
 import xyz.duncanruns.julti.cancelrequester.CancelRequesters;
 import xyz.duncanruns.julti.instance.MinecraftInstance;
@@ -26,7 +27,15 @@ public class CommandManager {
             new WaitCommand(),
             new LogCommand(),
             new PlaysoundCommand(),
-            new OpenFileCommand())));
+            new OpenFileCommand(),
+            new SessionResetCommand()
+    )));
+
+    static {
+        if (Julti.VERSION.equals("DEV")) {
+            MAIN_MANAGER.registerCommand(new TestCommand());
+        }
+    }
 
     public final List<Command> commands;
 

@@ -20,9 +20,7 @@ import xyz.duncanruns.julti.messages.*;
 import xyz.duncanruns.julti.plugin.PluginEvents;
 import xyz.duncanruns.julti.resetting.ResetHelper;
 import xyz.duncanruns.julti.script.ScriptManager;
-import xyz.duncanruns.julti.util.ResourceUtil;
-import xyz.duncanruns.julti.util.SleepBGUtil;
-import xyz.duncanruns.julti.util.UpdateUtil;
+import xyz.duncanruns.julti.util.*;
 import xyz.duncanruns.julti.win32.User32;
 
 import java.awt.*;
@@ -141,6 +139,7 @@ public final class Julti {
         InstanceManager.getInstanceManager().onOptionsLoad();
         HotkeyManager.getHotkeyManager().reloadHotkeys();
         ResetHelper.getManager().reload();
+        ResetCounter.updateFiles();
         PluginEvents.RunnableEventType.RELOAD.runAll();
 
     }
@@ -184,8 +183,11 @@ public final class Julti {
             log(Level.INFO, "Julti is being ran from another location");
         }
 
-        // Schedule update checker after Julti startup processes
-        Julti.doLater(() -> new Thread(() -> UpdateUtil.checkForUpdates(JultiGUI.getJultiGUI()), "update-checker").start());
+        // Schedule stuff for after Julti startup processes
+        Julti.doLater(() -> {
+            MistakesUtil.checkStartupMistakes();
+            new Thread(() -> UpdateUtil.checkForUpdates(JultiGUI.getJultiGUI()), "update-checker").start();
+        });
 
         while (this.running) {
             sleep(1);

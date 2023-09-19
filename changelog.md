@@ -1,15 +1,47 @@
+Changes in v0.22.0:
+- Added customizable delay between instance launches
+- Changed default affinity values
+- Added a new button to set affinity values to defaults (recommended)
+- Added freeze filter support (in experimental) (#75 by @draconix6)
+- Overhauled window management settings to give the user more power of the window behaviour
+  - Window maximizing is now explicitly set by the user
+  - Window position can now reference the center of the window
+  - "Choose Monitor" will now use the new center position
+  - Added "Fullscreen before Unpause" option to fix mouse issues when working with weird window sizes
+- Reorganized some GUI stuff
+
+Changes in v0.21.4:
+- Fixed a crash when Julti is placed in a path with spaces
+
+Changes in v0.21.3:
+- Fix some plugin loading stuff
+- Check if `TheWall.ahk` is running and warn the user of the conflict
+- Fixed some scene generation crashes in the OBS script
+- Added session reset counter
+    - Outputs to `sessionresets.txt` which is found in the `.Julti` folder (also where `resets.txt` is)
+    - The command `sessionresets [num]` can be used to set the counter manually, in the case where you need to restart Julti or if Julti crashes.
+- Profile options will now save every 100 resets (reset counter isn't just stored in `resets.txt`, it is stored in each profile as well)
+    - This should mostly fix the issue of "my reset counter goes back by thousands"; Julti already saves the reset count when exiting, but clearly this doesn't fully work sometimes, so more saving has been added.
+
+Changes in v0.21.2:
+- Removed auto title setting after 5 seconds of inactivity
+- Updated Plugin API
+- Prevent a divide by 0 crash (probably still underlying issues with this)
+- Fixed resetting window size on startup for fullscreen players
+- Fixed spacing of texts and buttons on the Plugins menu
+
 Changes in v0.21.1:
-+ Updated Standard Manager
-    + Fixed reversed naming on render distance values
+- Updated Standard Manager
+    - Fixed reversed naming on render distance values
 
 Changes in v0.21.0:
-+ Added plugins menu
-+ Added more plugin API
-+ Added Standard Manager as a default plugin
+- Added plugins menu
+- Added more plugin API
+- Added Standard Manager as a default plugin
 
 Changes in v0.20.1:
-+ Made the "Play Next Lock" and "Reset All" wall keys more compatible
-+ Added Plug-in API and Plug-in loading (Plug-in menu still needed)
+- Made the "Play Next Lock" and "Reset All" wall keys more compatible
+- Added Plug-in API and Plug-in loading (Plug-in menu still needed)
 
 Changes in v0.20.0:
 Eventually there were too many changes to even keep track of, this list is certainly not complete.
