@@ -90,6 +90,9 @@ public class OptionsGUI extends JFrame {
 
             panel.add(GUIUtil.createSpacer());
             panel.add(GUIUtil.leftJustify(GUIUtil.createCheckBoxFromOption("Use Playing Size w/ Fullscreen", "usePlayingSizeWithFullscreen", b -> this.reload())));
+            
+            panel.add(GUIUtil.createSpacer());
+            panel.add(GUIUtil.leftJustify(GUIUtil.createValueChangerButton("fullscreenDelay", "Added Fullscreen Delay", this, "ms")));
         }
         panel.add(GUIUtil.createSpacer());
         panel.add(GUIUtil.createSeparator());
