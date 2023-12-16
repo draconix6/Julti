@@ -738,6 +738,10 @@ public class MinecraftInstance {
         Julti.log(Level.DEBUG, "Estimated delay: " + delay + "ms + added delay of " + options.fullscreenDelay + "ms");
     }
 
+    public KeyPresser getKeyPresser() {
+        return this.presser;
+    }
+
     public void logAndCopyInfo() {
 
         final StringBuilder toCopy = new StringBuilder();
