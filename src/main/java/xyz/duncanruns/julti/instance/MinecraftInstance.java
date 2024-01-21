@@ -296,6 +296,9 @@ public class MinecraftInstance {
         if (!doingSetup && (!options.autoFullscreen || options.usePlayingSizeWithFullscreen)) {
             this.ensurePlayingWindowState(false);
         }
+        if (true) { // (options.warpCursor)
+            Julti.warpCursorToCenter();
+        }
         AffinityManager.unpause();
 
         if (this.stateTracker.isCurrentState(InstanceState.INWORLD)) {

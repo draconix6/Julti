@@ -317,6 +317,12 @@ public final class Julti {
         OBSStateManager.getOBSStateManager().setLocation(InstanceManager.getInstanceManager().getInstanceNum(instance));
     }
 
+    public static void warpCursorToCenter() {
+        JultiOptions options = JultiOptions.getJultiOptions();
+        int[] pos = MonitorUtil.getPrimaryMonitor().centerPosition; // !options.windowPosIsCenter ? WindowStateUtil.withTopLeftToCenter(new Rectangle(options.windowPos[0], options.windowPos[1])) : new Rectangle(options.windowPos[0], options.windowPos[1]);
+        User32.INSTANCE.SetCursorPos(pos[0], pos[1]);
+    }
+
     public void focusWall() {
         this.focusWall(true);
     }
@@ -346,6 +352,9 @@ public final class Julti {
         }
         ActiveWindowManager.activateHwnd(hwnd);
         User32.INSTANCE.ShowWindow(hwnd, User32.SW_SHOWMAXIMIZED);
+        if (true) { // (options.warpCursor)
+            warpCursorToCenter();
+        }
         OBSStateManager.getOBSStateManager().setLocationToWall();
         PluginEvents.RunnableEventType.WALL_ACTIVATE.runAll();
     }
