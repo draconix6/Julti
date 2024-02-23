@@ -17,7 +17,8 @@ import java.util.Objects;
 
 public class OBSStateManager {
     private static final OBSStateManager INSTANCE = new OBSStateManager();
-    private static final Path OUT_PATH = JultiOptions.getJultiDir().resolve("state");
+    private static final Path STATE_OUT_PATH = JultiOptions.getJultiDir().resolve("state");
+    private static final Path CURRENT_LOCATION_OUT_PATH = JultiOptions.getJultiDir().resolve("currentlocation.txt");
 
     private Dimension obsSceneSize = null;
     private String currentLocation = "W";
@@ -26,6 +27,20 @@ public class OBSStateManager {
 
     public static OBSStateManager getOBSStateManager() {
         return INSTANCE;
+    }
+
+    private static String obsOptionsToStateSection() {
+        JultiOptions options = JultiOptions.getJultiOptions();
+        int flags = (options.showInstanceIndicators ? 4 : 0)
+                + (options.centerAlignActiveInstance ? 2 : 0)
+                + (options.invisibleDirtCovers ? 1 : 0);
+
+        return String.format("%d,%s,%s", flags, formatAlignScale(options.centerAlignScaleX), formatAlignScale(options.centerAlignScaleY));
+    }
+
+    public static String formatAlignScale(float f) {
+        // Allow up to 3 decimal places, then trim off useless 0's
+        return String.format("%.3f", f).replace(",", ".").replaceAll("(\\.\\d+?)(0+$)", "$1");
     }
 
     private static int instanceToStateInt(List<MinecraftInstance> lockedInstances, MinecraftInstance instance) {
@@ -39,9 +54,9 @@ public class OBSStateManager {
 
     public void tryOutputState() {
         JultiOptions options = JultiOptions.getJultiOptions();
-        // Lazy try except (I sorry)
         try {
-            StringBuilder out = new StringBuilder(this.currentLocation);
+            // State format: location;[options int];[instance data];[instance data];[instance data];...
+            StringBuilder out = new StringBuilder(this.currentLocation + ";" + obsOptionsToStateSection());
             //(lockedInstances.contains(instance) ? 1 : 0) + (resetManager.shouldDirtCover(instance) ? 2 : 0)
             Dimension size = this.getOBSSceneSize();
             if (size == null) {
@@ -65,7 +80,8 @@ public class OBSStateManager {
             String outString = out.toString();
             if (!outString.equals(this.lastOut)) {
                 this.lastOut = outString;
-                FileUtil.writeString(OUT_PATH, outString);
+                FileUtil.writeString(STATE_OUT_PATH, outString);
+                FileUtil.writeString(CURRENT_LOCATION_OUT_PATH, this.currentLocation);
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -129,23 +145,6 @@ public class OBSStateManager {
             FileUtil.writeString(JultiOptions.getJultiDir().resolve("loadingsquaresize"), loadingSquareSize + "," + (loadingSquareSize + extraHeight));
         } catch (Exception e) {
             throw new RuntimeException(e);
-        }
-
-
-        if (JultiOptions.getJultiOptions().prepareWindowOnLock) {
-            // Check for alternate square size
-            width = options.playingWindowSize[0];
-            height = options.playingWindowSize[1];
-
-            if (!options.useBorderless) {
-                width -= 16;
-                height -= 39;
-            }
-            int playingGuiScale = this.getActualGuiScale(instance, width, height);
-
-            if (playingGuiScale != resettingGuiScale) {
-                Julti.log(Level.WARN, "VERIFICATION WARNING: You have prepare window on lock enabled, and your guiScale options means that the loading square size will change! In standard settings, you should change your guiScale to " + Math.min(resettingGuiScale, playingGuiScale) + ", and guiScaleOnWorldJoin to " + playingGuiScale + ".");
-            }
         }
     }
 

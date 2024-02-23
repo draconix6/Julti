@@ -2,13 +2,18 @@ package xyz.duncanruns.julti.gui;
 
 import xyz.duncanruns.julti.Julti;
 import xyz.duncanruns.julti.JultiOptions;
+import xyz.duncanruns.julti.management.InstanceManager;
 import xyz.duncanruns.julti.messages.OptionChangeQMessage;
 import xyz.duncanruns.julti.messages.ShutdownQMessage;
+import xyz.duncanruns.julti.util.MonitorUtil;
+import xyz.duncanruns.julti.util.MonitorUtil.Monitor;
+import xyz.duncanruns.julti.util.ResourceUtil;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.IOException;
 
 public class JultiGUI extends JFrame {
     private static final JultiGUI INSTANCE = new JultiGUI();
@@ -17,12 +22,21 @@ public class JultiGUI extends JFrame {
     private ControlPanel controlPanel;
     private boolean updating = false;
 
+    private JultiIcon trayIcon;
 
     public JultiGUI() {
         this.closed = false;
         this.setLayout(new GridBagLayout());
         this.setupComponents();
         this.setupWindow();
+    }
+
+    public static Image getLogo() {
+        try {
+            return ResourceUtil.getImageResource("/logo.png");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static JultiGUI getJultiGUI() {
@@ -35,6 +49,10 @@ public class JultiGUI extends JFrame {
 
     public ControlPanel getControlPanel() {
         return this.controlPanel;
+    }
+
+    public JultiIcon getJultiIcon() {
+        return this.trayIcon;
     }
 
     public void setVisible() {
@@ -71,7 +89,7 @@ public class JultiGUI extends JFrame {
                 0
         ));
 
-        this.add(new InstancesPanel(() -> this.isActive() || this.isOptionsActive(), this::isClosed), new GridBagConstraints(
+        this.add(new InstancesPanel(() -> this.isActive() || this.isOptionsActive() || InstanceManager.getInstanceManager().getSelectedInstance() != null, this::isClosed), new GridBagConstraints(
                 0,
                 1,
                 1,
@@ -87,16 +105,33 @@ public class JultiGUI extends JFrame {
     }
 
     private void setupWindow() {
-        this.setSize(800, 420);
+        // ensure window is inbounds
         int[] lastGUIPos = JultiOptions.getJultiOptions().lastGUIPos;
+        Monitor[] monitors = MonitorUtil.getAllMonitors();
+        Boolean inbounds = false;
+        for (Monitor monitor : monitors) {
+            if (monitor.bounds.contains(lastGUIPos[0], lastGUIPos[1])) {
+                inbounds = true;
+                break;
+            }
+        }
+        // if no monitors contain the last GUI position, reset the position to the primary monitor
+        if (!inbounds) {
+            lastGUIPos = MonitorUtil.getPrimaryMonitor().position;
+        }
         this.setLocation(lastGUIPos[0], lastGUIPos[1]);
-        this.setTitle("Julti");
+
+        this.setSize(800, 420);
+        this.setTitle("Julti v" + Julti.VERSION);
         this.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
                 JultiGUI.this.onClose();
             }
         });
+        this.setIconImage(JultiGUI.getLogo());
+        this.trayIcon = new JultiIcon(JultiGUI.getLogo());
+        this.trayIcon.setListener(this, JultiOptions.getJultiOptions().minimizeToTray);
     }
 
     private boolean isOptionsActive() {
@@ -110,6 +145,7 @@ public class JultiGUI extends JFrame {
 
     private void onClose() {
         this.closed = true;
+        SystemTray.getSystemTray().remove(this.trayIcon);
         Julti.getJulti().queueMessage(new OptionChangeQMessage("lastGUIPos", new int[]{this.getLocation().x, this.getLocation().y}));
         Julti.getJulti().queueMessageAndWait(new ShutdownQMessage());
         if (!this.updating) {

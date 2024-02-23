@@ -36,6 +36,7 @@ obs = obslua
 
 julti_dir = os.getenv("UserProfile"):gsub("\\", "/") .. "/.Julti/"
 timers_activated = false
+scenes_regenerated = true
 last_state_text = ""
 last_scene_name = ""
 
@@ -51,6 +52,9 @@ win_cap_instead = false
 reuse_for_verification = false
 invisible_dirt_covers = false
 center_align_instances = false
+center_align_scale_x = 1.0
+center_align_scale_y = 1.0
+show_indicators = false
 
 
 -- Constants
@@ -105,6 +109,11 @@ function set_instance_data(num, lock_visible, dirt_cover, freeze_active, x, y, w
     center_align = center_align or false
 
     local group = get_group_as_scene("Instance " .. num)
+    
+    if group == nil and scenes_regenerated then
+        scenes_regenerated = false
+        obs.script_log(200, "Detected newly added instances! Please go to Tools > Scripts > Generate Scenes to add them to OBS.")
+    end
 
     if invisible_dirt_covers and dirt_cover then
         teleport_off_canvas(num)
@@ -178,6 +187,49 @@ function set_instance_data_from_string(instance_num, data_string)
     )
 end
 
+---- Instance Indicators ----
+
+function disable_all_indicators()
+    num = 0
+    while true do
+        num = num + 1
+        local group = get_group_as_scene("Instance " .. num)
+        if group == nil then
+            return
+        end
+        local si = obs.obs_scene_find_source(group, "Instance " .. num .. " Indicator")
+        if si ~= nil then
+            obs.obs_sceneitem_set_visible(si, false)
+        end
+    end
+end
+
+function enable_indicators(instance_count)
+    for num = 1, instance_count, 1 do
+        local group = get_group_as_scene("Instance " .. num)
+        if group == nil then
+            return
+        end
+        local si = obs.obs_scene_find_source(group, "Instance " .. num .. " Indicator")
+        if si ~= nil then
+            obs.obs_sceneitem_set_visible(si, true)
+        end
+        set_position(si, 5, 0)
+    end
+end
+
+function enable_indicator(num)
+    local group = get_group_as_scene("Instance " .. num)
+    if group == nil then
+        return
+    end
+    local si = obs.obs_scene_find_source(group, "Instance " .. num .. " Indicator")
+    if si ~= nil then
+        obs.obs_sceneitem_set_visible(si, true)
+    end
+    set_position(si, 5, 0)
+end
+
 ---- Misc Functions ----
 
 function split_string(input_string, split_char)
@@ -187,6 +239,104 @@ function split_string(input_string, split_char)
         table.insert(out, str)
     end
     return out
+end
+
+---- Multi Scene Generator ----
+
+function generate_multi_scenes()
+    local instance_count = 0
+    ::go_again::
+    local temp_source = get_source("Minecraft Capture " .. (instance_count + 1))
+    if temp_source ~= nil then
+        instance_count = instance_count + 1
+        release_source(temp_source)
+        goto go_again
+    end
+
+
+    if instance_count == 0 then
+        obs.script_log(100, "You have not generated regular scenes yet!")
+        return
+    end
+
+    remove_individual_multi_captures()
+
+    gen_overlay_scene()
+
+    for i = 1, instance_count, 1 do
+        generate_multi_playing_scene(i)
+    end
+end
+
+function gen_overlay_scene()
+    local scene = get_scene("Playing Overlay")
+    if (scene ~= nil) then
+        return
+    end
+    create_scene("Playing Overlay")
+    local num_over = get_source("Current Location")
+    if num_over == nil then
+        local settings = obs.obs_data_create_from_json(
+            '{"file":"' .. julti_dir ..
+            'currentlocation.txt","font":{"face":"Arial","flags":0,"size":48,"style":"Regular"},"opacity":15,"read_from_file":true}'
+        )
+        num_over = obs.obs_source_create("text_gdiplus", "Current Location", settings, nil)
+    end
+    obs.obs_scene_add(get_scene("Playing Overlay"), num_over)
+    release_source(num_over)
+end
+
+function generate_multi_playing_scene(i)
+    local scene = get_scene("Playing " .. i)
+
+    if (scene == nil) then
+        create_scene("Playing " .. i)
+        scene = get_scene("Playing " .. i)
+
+        local source = get_source("Sound")
+        obs.obs_scene_add(scene, source)
+        release_source(source)
+
+        local source = get_source("Playing Overlay")
+        obs.obs_scene_add(scene, source)
+        release_source(source)
+    end
+
+    local source = get_source("Minecraft Capture " .. i)
+    local si = obs.obs_scene_add(scene, source)
+    bring_to_bottom(si)
+    release_source(source)
+end
+
+function remove_individual_multi_captures()
+    local i = 0
+    local scene = nil
+
+    ::go_again::
+    i = i + 1
+    scene = get_scene("Playing " .. i)
+
+    if scene == nil then
+        return
+    end
+
+    local si = obs.obs_scene_find_source(scene, "Minecraft Capture " .. i)
+    if (si == nil) then
+        goto go_again
+    end
+
+    obs.obs_sceneitem_remove(si)
+
+    goto go_again
+end
+
+function regenerate_multi_scenes()
+    local scene = get_scene("Playing 1")
+    if scene == nil then
+        return
+    end
+    remove_individual_multi_captures()
+    generate_multi_scenes()
 end
 
 ---- Obs Functions ----
@@ -262,6 +412,10 @@ function set_position_with_bounds(scene_item, x, y, width, height, center_align)
 
     if center_align then
         obs.obs_sceneitem_set_bounds_type(scene_item, obs.OBS_BOUNDS_NONE)
+        local scale = obs.vec2()
+        scale.x = center_align_scale_x
+        scale.y = center_align_scale_y
+        obs.obs_sceneitem_set_scale(scene_item, scale)
     else
         obs.obs_sceneitem_set_bounds_type(scene_item, obs.OBS_BOUNDS_STRETCH)
         obs.obs_sceneitem_set_bounds(scene_item, bounds)
@@ -294,7 +448,9 @@ function get_sceneitem_name(sceneitem)
 end
 
 function bring_to_top(item)
-    obs.obs_sceneitem_set_order(item, obs.OBS_ORDER_MOVE_TOP)
+    if item ~= nil then
+        obs.obs_sceneitem_set_order(item, obs.OBS_ORDER_MOVE_TOP)
+    end
 end
 
 function bring_to_bottom(item)
@@ -360,7 +516,7 @@ function generate_scenes()
         obs.script_log(100, "Julti has not yet been set up! Please setup Julti first!")
         return
     end
-    local instance_count = (#(split_string(out, ";"))) - 1
+    local instance_count = (#(split_string(out, ";"))) - 2
 
     if not scene_exists("Lock Display") then
         _setup_lock_scene()
@@ -393,11 +549,17 @@ function generate_scenes()
         found_ae = true
     end
 
+    remove_individual_multi_captures()
+
     _ensure_empty_important_scenes()
 
     _setup_julti_scene()
 
     _setup_verification_scene()
+
+    regenerate_multi_scenes()
+
+    disable_all_indicators()
 
 
     -- Reset variables to have loop update stuff automatically
@@ -417,6 +579,8 @@ function generate_scenes()
         obs.script_log(200, "If you want to recreate these scenes,")
         obs.script_log(200, "delete them first before pressing Generate Scenes.")
     end
+    
+    scenes_regenerated = true
 end
 
 function _fix_bad_names(instance_count)
@@ -541,7 +705,7 @@ function _setup_verification_scene()
         obs.script_log(200, "Warning: Could not a loading square size, defaulting to 90x90.")
     end
 
-    local instance_count = (#(split_string(out, ";"))) - 1
+    local instance_count = (#(split_string(out, ";"))) - 2
 
     if instance_count == 0 then
         return
@@ -695,7 +859,7 @@ end
 function _setup_julti_scene()
     local out = get_state_file_string()
 
-    local instance_count = (#(split_string(out, ";"))) - 1
+    local instance_count = (#(split_string(out, ";"))) - 2
 
     if instance_count == 0 then
         obs.script_log(100, "Julti has not yet been set up (No instances found)! Please setup Julti first!")
@@ -742,9 +906,21 @@ function make_minecraft_group(num, total_width, total_height, y, i_height)
     -- intuitively the scene item returned from add group would need to be released, but it does not
     local group_si = obs.obs_scene_add_group(scene, "Instance " .. num)
 
+    local num_overlay_name = "Instance " .. num .. " Indicator"
+    local source = get_source(num_overlay_name)
+    if source == nil then
+        local settings = obs.obs_data_create_from_json(
+            '{"text": "' .. num .. '","font": {"face": "Arial","flags": 0,"size": 48,"style": "Regular"},"opacity": 15}'
+        )
+        source = obs.obs_source_create("text_gdiplus", num_overlay_name, settings, nil)
+    end
+    local indicator_item = obs.obs_scene_add(scene, source)
+    obs.obs_sceneitem_group_add_item(group_si, indicator_item)
+    set_position(indicator_item, 5, 0)
+    release_source(source)
+
     local source = get_source("Lock Display")
-    local ldsi = obs.obs_scene_add(scene, source)
-    obs.obs_sceneitem_group_add_item(group_si, ldsi)
+    obs.obs_sceneitem_group_add_item(group_si, obs.obs_scene_add(scene, source))
     release_source(source)
 
     local source = get_source("Dirt Cover Display")
@@ -784,28 +960,28 @@ end
 function script_properties()
     local props = obs.obs_properties_create()
 
-    obs.obs_properties_add_bool(props, "win_cap_instead", "Use Window Capture for Julti Scene Sources")
+    obs.obs_properties_add_bool(props, "win_cap_instead",
+        "[Generation Option]\nUse Window Capture for Julti Scene Sources")
     obs.obs_properties_add_bool(props, "reuse_for_verification",
-        "Reuse Julti Scene Sources for Verification Scene\n(Better for source record or window cap)")
+        "[Generation Option]\nReuse Julti Scene Sources for Verification Scene\n(Better for source record or window cap)")
 
     obs.obs_properties_add_button(
         props, "generate_scenes_button", "Generate Scenes", request_generate_scenes)
     obs.obs_properties_add_button(
         props, "generate_stream_scenes_button", "Generate Stream Scenes", request_generate_stream_scenes)
+    obs.obs_properties_add_button(
+        props, "generate_multi_scenes_button", "Generate Multi Scenes (1 scene per instance)", generate_multi_scenes)
 
-    obs.obs_properties_add_bool(props, "invisible_dirt_covers", "Invisible Dirt Covers")
-    obs.obs_properties_add_bool(props, "center_align_instances",
-        "Align Active Instance to Center\n(for EyeZoom/stretched window users)")
+    -- Moved into Julti options
+    -- obs.obs_properties_add_bool(props, "invisible_dirt_covers", "Invisible Dirt Covers")
+    -- obs.obs_properties_add_bool(props, "center_align_instances",
+    --     "Align Active Instance to Center\n(for EyeZoom/stretched window users)")
 
     return props
 end
 
 function script_load(settings)
-    local video_info = get_video_info()
-    total_width = video_info.base_width
-    total_height = video_info.base_height
-
-    pcall(write_file, julti_dir .. "obsscenesize", total_width .. "," .. total_height)
+    update_scene_size(true)
 
     switch_to_scene("Julti")
 end
@@ -813,14 +989,28 @@ end
 function script_update(settings)
     win_cap_instead = obs.obs_data_get_bool(settings, "win_cap_instead")
     reuse_for_verification = obs.obs_data_get_bool(settings, "reuse_for_verification")
-    center_align_instances = obs.obs_data_get_bool(settings, "center_align_instances")
-    invisible_dirt_covers = obs.obs_data_get_bool(settings, "invisible_dirt_covers")
 
     if timers_activated then
         return
     end
     timers_activated = true
     obs.timer_add(loop, 20)
+    obs.timer_add(update_scene_size, 2000)
+end
+
+function update_scene_size(skipLog)
+    local video_info = get_video_info()
+
+    if total_width ~= video_info.base_width or total_height ~= video_info.base_height then
+        total_width = video_info.base_width
+        total_height = video_info.base_height
+
+        pcall(write_file, julti_dir .. "obsscenesize", total_width .. "," .. total_height)
+
+        if not skipLog then
+            obs.script_log(200, "Detected a change in OBS canvas resolution! If Julti is currently running, please restart it to fix scene sizes.")
+        end
+    end
 end
 
 function loop()
@@ -859,6 +1049,12 @@ function loop()
         return
     end
 
+    -- Ensure hidden lock example
+
+    if current_scene_name ~= "Lock Display" then
+        hide_example_instances()
+    end
+
     -- Get state output
 
     local out = get_state_file_string()
@@ -871,22 +1067,33 @@ function loop()
     -- Process state data
 
     local data_strings = split_string(out, ";")
+    local instance_count = (#data_strings) - 2
     local user_location = nil
+    local global_options_unset = true
     local instance_num = 0
     for k, data_string in pairs(data_strings) do
         if user_location == nil then
+            -- Should take first item from data_strings
             user_location = data_string
             -- Prevent wall updates if switching to a single instance scene to allow transitions to work
             if user_location ~= "W" and switch_to_scene("Playing " .. user_location) then
                 return
             end
+        elseif global_options_unset then
+            -- Should take second item from data_strings
+            global_options_unset = false
+            set_globals_from_state(data_string)
         else
             instance_num = instance_num + 1
             set_instance_data_from_string(instance_num, data_string)
         end
     end
 
+    disable_all_indicators()
+
     if user_location == "W" then
+        bring_to_top(obs.obs_scene_find_source(get_scene("Julti"), "Wall On Top"))
+        if show_indicators then enable_indicators(instance_count) end
         if (scene_exists("Walling")) then
             switch_to_scene("Walling")
         else
@@ -902,8 +1109,10 @@ function loop()
 
     if user_location ~= "W" then
         local scene = get_scene("Julti")
+        if show_indicators then enable_indicator(user_location) end
         bring_to_top(obs.obs_scene_find_source(scene, "Instance " .. user_location))
-        set_instance_data(tonumber(user_location), false, false, false, 0, 0, total_width, total_height, center_align_instances)
+        set_instance_data(tonumber(user_location), false, false, false, 0, 0, total_width, total_height,
+            center_align_instances)
 
         -- hide bordering instances
         if not center_align_instances then
@@ -919,6 +1128,28 @@ function loop()
     end
 end
 
+function set_globals_from_state(options_section)
+    local args = split_string(options_section, ",")
+    set_globals_from_bits(tonumber(args[1]))
+    center_align_scale_x = tonumber(args[2]) or 1.0
+    center_align_scale_y = tonumber(args[3]) or 1.0
+end
+
+function set_globals_from_bits(flag_int)
+    show_indicators = flag_int >= 4
+    if show_indicators then
+        flag_int = flag_int - 4
+    end
+    center_align_instances = flag_int >= 2
+    if center_align_instances then
+        flag_int = flag_int - 2
+    end
+    invisible_dirt_covers = flag_int >= 1
+    if invisible_dirt_covers then
+        flag_int = flag_int - 1
+    end
+end
+
 function on_scene_change(last_scene_name, new_scene_name)
     if new_scene_name == "Lock Display" then
         local state = get_state_file_string()
@@ -929,16 +1160,20 @@ function on_scene_change(last_scene_name, new_scene_name)
         if #data_strings == 1 then
             return
         end
-        local nums = split_string(data_strings[2], ",")
+        local nums = split_string(data_strings[3], ",")
 
         local scene = get_scene("Lock Display")
         local item = obs.obs_scene_find_source(scene, "Example Instances")
         obs.obs_sceneitem_set_visible(item, true)
         set_position_with_bounds(item, 0, 0, tonumber(nums[4]), tonumber(nums[5]))
     elseif last_scene_name == "Lock Display" then
-        local scene = get_scene("Lock Display")
-        local item = obs.obs_scene_find_source(scene, "Example Instances")
-        obs.obs_sceneitem_set_visible(item, false)
+        hide_example_instances()
     end
+end
+
+function hide_example_instances()
+    local scene = get_scene("Lock Display")
+    local item = obs.obs_scene_find_source(scene, "Example Instances")
+    obs.obs_sceneitem_set_visible(item, false)
 end
 

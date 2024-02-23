@@ -6,14 +6,21 @@ import xyz.duncanruns.julti.instance.MinecraftInstance;
 import xyz.duncanruns.julti.management.InstanceManager;
 import xyz.duncanruns.julti.util.GUIUtil;
 import xyz.duncanruns.julti.util.SafeInstanceLauncher;
+import xyz.duncanruns.julti.util.SubmissionUtil;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.io.IOException;
+import java.nio.file.Path;
 
 public class SingleInstancePanel extends JPanel implements MouseListener {
+
+    private final JPanel panel = new JPanel();
+    private final Color idlePanelColor = this.getBackground();
+    private final Color activePanelColor = this.idlePanelColor.brighter();
 
     private final JLabel nameLabel = new JLabel("Unknown");
     private final JLabel statusLabel = new JLabel("Unknown");
@@ -22,15 +29,14 @@ public class SingleInstancePanel extends JPanel implements MouseListener {
     public SingleInstancePanel() {
         this.setBorder(new FlatBorder());
         this.setLayout(new FlowLayout());
-        JPanel panel = new JPanel();
 
-        panel.setLayout(new GridLayout(2, 1));
+        this.panel.setLayout(new GridLayout(2, 1));
 
         this.nameLabel.setHorizontalAlignment(SwingConstants.CENTER);
         this.statusLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        panel.add(this.nameLabel);
-        panel.add(this.statusLabel);
-        this.add(panel);
+        this.panel.add(this.nameLabel);
+        this.panel.add(this.statusLabel);
+        this.add(this.panel);
         this.addMouseListener(this);
     }
 
@@ -38,6 +44,14 @@ public class SingleInstancePanel extends JPanel implements MouseListener {
         this.nameLabel.setText(instance.getName());
         this.statusLabel.setText(instance.hasWindow() ? "Open" : "Closed");
         this.instance = instance;
+        this.setBackground(this.idlePanelColor);
+        this.panel.setBackground(this.idlePanelColor);
+    }
+
+    public void setActive(boolean currentlyPlaying) {
+        this.statusLabel.setText(currentlyPlaying ? "Playing" : "Last Played");
+        this.setBackground(this.activePanelColor);
+        this.panel.setBackground(this.activePanelColor);
     }
 
     @Override
@@ -95,6 +109,18 @@ public class SingleInstancePanel extends JPanel implements MouseListener {
             @Override
             public void actionPerformed(ActionEvent e) {
                 SingleInstancePanel.this.instance.openFolder();
+            }
+        });
+        GUIUtil.addMenuItem(popupMenu, "Package Files for Submission", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                Path finalPath = SubmissionUtil.tryPrepareSubmission(SingleInstancePanel.this.instance);
+                if (finalPath != null) {
+                    try {
+                        Desktop.getDesktop().browse(finalPath.toUri());
+                    } catch (IOException ignored) {
+                    }
+                }
             }
         });
         GUIUtil.addMenuItem(popupMenu, "Remove", new AbstractAction() {

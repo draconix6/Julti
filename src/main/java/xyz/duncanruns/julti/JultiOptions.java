@@ -41,7 +41,6 @@ public final class JultiOptions {
     public boolean coopMode = false;
 
     // Wall
-    public boolean wallResetAllAfterPlaying = false;
     public boolean wallLockInsteadOfPlay = true;
     public boolean wallSmartSwitch = false;
     public boolean wallBypass = true;
@@ -96,6 +95,11 @@ public final class JultiOptions {
     public int instanceSpacing = 0;
     public boolean useCustomWallWindow = false;
     public String customWallNameFormat = "* projector (scene) - *";
+    public boolean invisibleDirtCovers = false;
+    public boolean centerAlignActiveInstance = false;
+    public float centerAlignScaleX = 1f;
+    public float centerAlignScaleY = 1f;
+    public boolean showInstanceIndicators = true;
 
     // Other
     public String multiMCPath = "";
@@ -103,6 +107,7 @@ public final class JultiOptions {
     public String launchOfflineName = "Instance*";
     public long launchDelay = 500;
     public int resetCounter = 0;
+    public boolean minimizeToTray = false;
 
 
     // Affinity
@@ -132,12 +137,19 @@ public final class JultiOptions {
     public boolean autoFullscreen = false;
     public boolean fullscreenBeforeUnpause = true;
     public boolean usePlayingSizeWithFullscreen = true;
+    public int fullscreenDelay = 50;
     public boolean pieChartOnLoad = false;
     public boolean preventWindowNaming = false;
     public boolean alwaysOnTopProjector = false;
+    public boolean minimizeProjectorWhenPlaying = false;
+    public boolean activateProjectorOnReset = false;
     public boolean useAltSwitching = false;
     public boolean allowResetDuringGenerating = false;
+    public boolean resizeableBorderless = false;
     // public boolean forceActivate = false;
+
+    // Launching
+    public List<String> launchingProgramPaths = new ArrayList<>();
 
 
     // Hidden
@@ -325,6 +337,14 @@ public final class JultiOptions {
             }
         }
 
+        if (oldOptions.showInstanceIndicators == null) {
+            this.showInstanceIndicators = false;
+        }
+
+        if (oldOptions.fullscreenDelay == null) {
+            this.fullscreenDelay = 0;
+        }
+
         if (changes.isEmpty()) {
             return;
         }
@@ -509,5 +529,7 @@ public final class JultiOptions {
         public String obsWindowNameFormat = null;
         public Integer resetMode = null;
         public Boolean useMaximizeWithFullscreen = null;
+        public Boolean showInstanceIndicators = null;
+        public Integer fullscreenDelay = null;
     }
 }

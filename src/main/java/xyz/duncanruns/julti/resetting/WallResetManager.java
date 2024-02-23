@@ -34,7 +34,7 @@ public class WallResetManager extends ResetManager {
 
         List<MinecraftInstance> instances = InstanceManager.getInstanceManager().getInstances();
         // Return if no instances
-        if (instances.size() == 0) {
+        if (instances.isEmpty()) {
             return Collections.emptyList();
         }
 
@@ -288,17 +288,12 @@ public class WallResetManager extends ResetManager {
     public List<ActionResult> leaveInstance(MinecraftInstance selectedInstance, List<MinecraftInstance> instances) {
         JultiOptions options = JultiOptions.getJultiOptions();
 
-        boolean resetFirst = options.coopMode;
+        boolean resetFirst = options.coopMode && options.wallBypass;
 
         selectedInstance.ensureNotFullscreen();
 
         // Unlock instance
         this.unlockInstance(selectedInstance);
-
-        // Reset all after playing mode
-        if (options.wallResetAllAfterPlaying) {
-            return this.leaveInstanceRAAPMode(instances, resetFirst);
-        }
 
         // Get next instance
         MinecraftInstance nextInstance = this.getNextPlayableLockedInstance(options.returnToWallIfNoneLoaded);
@@ -314,31 +309,6 @@ public class WallResetManager extends ResetManager {
 
         // We can confidently return that an instance was reset, but not necessarily that an instance was activated.
         return nextInstanceFound ? Arrays.asList(ActionResult.INSTANCE_RESET, ActionResult.INSTANCE_ACTIVATED) : Collections.singletonList(ActionResult.INSTANCE_RESET);
-    }
-
-    private List<ActionResult> leaveInstanceRAAPMode(List<MinecraftInstance> instances, boolean resetFirst) {
-        List<ActionResult> actionResults = new ArrayList<>();
-        if (resetFirst) {
-            DoAllFastUtil.doAllFast(instances, instance -> {
-                instance.reset();
-                synchronized (actionResults) {
-                    actionResults.add(ActionResult.INSTANCE_RESET);
-                }
-            });
-            sleep(100);
-        }
-        Julti.getJulti().focusWall();
-        if (!resetFirst) {
-            DoAllFastUtil.doAllFast(instances, instance -> {
-                instance.reset();
-                synchronized (actionResults) {
-                    actionResults.add(ActionResult.INSTANCE_RESET);
-                }
-            });
-        }
-        // Clear out locked instances since all instances reset.
-        this.lockedInstances.clear();
-        return actionResults;
     }
 
     @Nullable
@@ -382,6 +352,10 @@ public class WallResetManager extends ResetManager {
             return false;
         } else {
             this.unlockInstance(nextInstance);
+            // activate projector - avoid previous instances behind selected instance when using thin BT, etc.
+            if (options.activateProjectorOnReset) {
+                Julti.getJulti().focusWall(false);
+            }
             Julti.getJulti().activateInstance(nextInstance);
             return true;
         }

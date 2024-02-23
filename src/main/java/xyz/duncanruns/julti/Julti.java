@@ -172,6 +172,7 @@ public final class Julti {
         ResourceUtil.makeResources();
         OBSStateManager.getOBSStateManager().tryOutputLSInfo();
         checkDeleteOldJar();
+        PluginEvents.RunnableEventType.LAUNCH.runAll();
 
         this.reload();
         long cycles = 0;
@@ -186,7 +187,7 @@ public final class Julti {
         // Schedule stuff for after Julti startup processes
         Julti.doLater(() -> {
             MistakesUtil.checkStartupMistakes();
-            new Thread(() -> UpdateUtil.checkForUpdates(JultiGUI.getJultiGUI()), "update-checker").start();
+            new Thread(() -> UpdateUtil.tryCheckForUpdates(JultiGUI.getJultiGUI()), "update-checker").start();
         });
 
         while (this.running) {
@@ -238,14 +239,14 @@ public final class Julti {
 
     private void processHotkeyMessages() {
         // Cancel all hotkeys if instances are missing
-        if (InstanceManager.getInstanceManager().areInstancesMissing()) {
-            this.hotkeyQueue.forEach(QMessage::markProcessed);
-            this.hotkeyQueue.clear();
-            return;
-        }
+        boolean instancesMissing = InstanceManager.getInstanceManager().areInstancesMissing();
 
         while (!this.hotkeyQueue.isEmpty()) {
             HotkeyPressQMessage message = this.hotkeyQueue.poll();
+            if (instancesMissing && !message.getHotkeyCode().startsWith("script:")) {
+                message.markProcessed();
+                continue;
+            }
             try {
                 this.runHotkeyAction(message.getHotkeyCode(), message.getMousePosition());
             } catch (Exception e) {
@@ -309,15 +310,22 @@ public final class Julti {
     }
 
     public void activateInstance(MinecraftInstance instance, boolean doingSetup) {
+        JultiOptions options = JultiOptions.getJultiOptions();
         instance.activate(doingSetup);
-        if (JultiOptions.getJultiOptions().alwaysOnTopProjector && ActiveWindowManager.isWallActive()) {
+        if ((options.alwaysOnTopProjector || options.minimizeProjectorWhenPlaying) && ActiveWindowManager.isWallActive()) {
             User32.INSTANCE.ShowWindow(ActiveWindowManager.getActiveHwnd(), User32.SW_MINIMIZE);
         }
         OBSStateManager.getOBSStateManager().setLocation(InstanceManager.getInstanceManager().getInstanceNum(instance));
     }
 
     public void focusWall() {
-        SleepBGUtil.disableLock();
+        this.focusWall(true);
+    }
+
+    public void focusWall(boolean disableLock) {
+        if (disableLock) {
+            SleepBGUtil.disableLock();
+        }
         AtomicReference<HWND> wallHwnd = new AtomicReference<>(ActiveWindowManager.getLastWallHwnd());
         if (wallHwnd.get() == null) {
             User32.INSTANCE.EnumWindows((hwnd, data) -> {

@@ -12,7 +12,6 @@ import xyz.duncanruns.julti.management.ActiveWindowManager;
 import xyz.duncanruns.julti.plugin.PluginEvents;
 import xyz.duncanruns.julti.resetting.ResetHelper;
 import xyz.duncanruns.julti.util.*;
-import xyz.duncanruns.julti.util.FabricJarUtil.FabricJarInfo;
 import xyz.duncanruns.julti.win32.User32;
 
 import java.awt.*;
@@ -55,11 +54,13 @@ public class MinecraftInstance {
     private long lastSetVisible = 0;
     private boolean openedToLan = false;
 
+    private long lastActivation = 0L;
+
     public MinecraftInstance(HWND hwnd, Path path, String versionString) {
         this.hwnd = hwnd;
         this.path = path;
         this.versionString = versionString;
-        this.stateTracker = new StateTracker(path.resolve("wpstateout.txt"), this::onStateChange);
+        this.stateTracker = new StateTracker(path.resolve("wpstateout.txt"), this::onStateChange, this::onPercentageUpdate);
         this.presser = new KeyPresser(hwnd);
         this.scheduler = new Scheduler();
     }
@@ -69,7 +70,7 @@ public class MinecraftInstance {
         this.versionString = null;
         this.presser = null;
         this.scheduler = null;
-        this.stateTracker = new StateTracker(path.resolve("wpstateout.txt"), null);
+        this.stateTracker = new StateTracker(path.resolve("wpstateout.txt"), null, null);
 
         this.path = path;
         this.windowMissing = true;
@@ -138,10 +139,17 @@ public class MinecraftInstance {
 
         this.gameOptions.pauseOnLostFocus = GameOptionsUtil.tryGetBoolOption(this.getPath(), "pauseOnLostFocus", true);
         this.gameOptions.f1SS = Objects.equals(GameOptionsUtil.getStandardOption(this.getPath(), "f1"), "true");
+        this.gameOptions.f3PauseOnWorldLoad = Objects.equals(GameOptionsUtil.getStandardOption(this.getPath(), "f3PauseOnWorldLoad"), "true");
 
         this.checkFabricMods();
 
         this.discoverName();
+
+        // check if fullscreen is true in standardoptions (bad)
+        if (Objects.equals(GameOptionsUtil.tryGetStandardOption(this.getPath(), "fullscreen"), "true")) {
+            Julti.log(Level.WARN, this.getName() + " has fullscreen set to true in standardsettings!\n" +
+                    "To prevent any issues, please press Plugins > Open Standard Manager > Yes, to optimize your standardoptions.");
+        }
     }
 
     private void checkFabricMods() {
@@ -151,17 +159,14 @@ public class MinecraftInstance {
             throw new RuntimeException(e);
         }
 
-        FabricJarInfo wpInfo = FabricJarUtil.getJarInfo(this.gameOptions.jars, "worldpreview");
-        FabricJarInfo soInfo = FabricJarUtil.getJarInfo(this.gameOptions.jars, "state-output");
+        String wpVer = VersionUtil.extractVersion(FabricJarUtil.getJarInfo(this.gameOptions.jars, "worldpreview").version);
+        String soVer = VersionUtil.extractVersion(FabricJarUtil.getJarInfo(this.gameOptions.jars, "state-output").version);
 
-        boolean hasStateOutput = true;
-        if (wpInfo == null && soInfo == null) {
-            hasStateOutput = false;
-        } else if (soInfo == null) {
-            Matcher matcher = Pattern.compile("\\d+").matcher(wpInfo.version);
-            if (!matcher.find() || Integer.parseInt(matcher.group()) < 3) {
-                hasStateOutput = false;
-            }
+        boolean hasStateOutput = false;
+        if (VersionUtil.tryCompare(soVer, "0", 0) > 0) {
+            hasStateOutput = true;
+        } else if (VersionUtil.tryCompare(wpVer, "3.0.0", -1) >= 0 && VersionUtil.tryCompare(wpVer, "5.0.0", 0) < 0) {
+            hasStateOutput = true;
         }
 
         if (!hasStateOutput) {
@@ -279,6 +284,7 @@ public class MinecraftInstance {
         if (this.isWindowMarkedMissing()) {
             return;
         }
+        this.lastActivation = System.currentTimeMillis();
         this.scheduler.clear();
         this.activeSinceReset = true;
 
@@ -315,7 +321,7 @@ public class MinecraftInstance {
             }
         }
         if (doingSetup) {
-            Julti.doLater(() -> this.ensureResettingWindowState(false));
+            this.ensureInitialWindowState();
         } else {
             PluginEvents.InstanceEventType.ACTIVATE.runAll(this);
         }
@@ -333,6 +339,10 @@ public class MinecraftInstance {
                 break;
         }
         PluginEvents.InstanceEventType.STATE_CHANGE.runAll(this);
+    }
+
+    private void onPercentageUpdate() {
+        PluginEvents.InstanceEventType.PERCENTAGE_CHANGE.runAll(this);
     }
 
     public int getResetSortingNum() {
@@ -354,12 +364,20 @@ public class MinecraftInstance {
 
         JultiOptions options = JultiOptions.getJultiOptions();
 
-        if (this.gameOptions.pauseOnLostFocus) {
-            Julti.log(Level.WARN, "Instance " + this + " has pauseOnLostFocus, some features cannot be used!");
-            return;
+        boolean instanceCanPauseItself = this.gameOptions.pauseOnLostFocus || this.gameOptions.f3PauseOnWorldLoad;
+
+        // Warnings
+        if (this.gameOptions.pauseOnLostFocus && this.gameOptions.f3PauseOnWorldLoad) {
+            Julti.log(Level.WARN, "Instance " + this + " has pauseOnLostFocus and f3PauseOnWorldLoad enabled at the same time! Setting pauseOnLostFocus to false is recommended.");
+        } else if (options.useF3 && this.gameOptions.pauseOnLostFocus) {
+            Julti.log(Level.WARN, "Instance " + this + " has pauseOnLostFocus enabled while Julti has \"Use F3\" enabled, so instances will not pause with f3 pausing. Setting pauseOnLostFocus to false is recommended.");
+        } else if (!options.useF3 && this.gameOptions.f3PauseOnWorldLoad) {
+            Julti.log(Level.WARN, "Instance " + this + " has f3PauseOnWorldLoad enabled while Julti has \"Use F3\" disabled, so instances will pause with f3 pausing. Setting f3PauseOnWorldLoad to false is recommended.");
         }
 
-        if (!bypassPieChartGate && options.pieChartOnLoad) {
+        if (instanceCanPauseItself && options.pieChartOnLoad) {
+            Julti.log(Level.WARN, "Instance " + this + " has \"Pie Chart On Load\" enabled but cannot be used since the instance is configured to pause itself! To remove this warning, either disable \"Pie Chart On Load\" or make sure pauseOnLostFocus and f3PauseOnWorldLoad are set to false.");
+        } else if (!bypassPieChartGate && options.pieChartOnLoad) {
             // Open pie chart
             this.presser.pressShiftF3();
 
@@ -368,16 +386,8 @@ public class MinecraftInstance {
             return;
         }
 
-        int toPress;
-        if (options.useF3) {
-            // F3
-            toPress = 2;
-        } else {
-            // No F3
-            toPress = 1;
-        }
+        int toPress = options.useF3 ? 2 : 1;
 
-        // Stay Unpaused if window is active
         if (ActiveWindowManager.isWindowActive(this.hwnd)) {
             if (options.unpauseOnSwitch || options.coopMode) {
                 toPress = 0;
@@ -393,6 +403,8 @@ public class MinecraftInstance {
             if (this.gameOptions.f1SS) {
                 this.presser.pressF1();
             }
+        } else if (instanceCanPauseItself) {
+            toPress = 0;
         }
 
         switch (toPress) {
@@ -411,7 +423,7 @@ public class MinecraftInstance {
 
     private void onPreviewLoad() {
         this.scheduler.clear();
-        if (JultiOptions.getJultiOptions().useF3) {
+        if (JultiOptions.getJultiOptions().useF3 && (ActiveWindowManager.isWindowActive(this.hwnd) || !this.gameOptions.f3PauseOnWorldLoad)) {
             this.scheduler.schedule(this.presser::pressF3Esc, 50);
         }
         ResetHelper.getManager().notifyPreviewLoaded(this);
@@ -572,12 +584,18 @@ public class MinecraftInstance {
         }
 
         boolean currentlyBorderless = WindowStateUtil.isHwndBorderless(this.hwnd);
+        boolean currentlyResizeableBorderless = WindowStateUtil.isHwndResizeableBorderless(this.hwnd);
         boolean currentlyMaximized = WindowStateUtil.isHwndMaximized(this.hwnd);
         Rectangle currentBounds = WindowStateUtil.getHwndRectangle(this.hwnd);
 
-        if (useBorderless && !currentlyBorderless) {
-            WindowStateUtil.setHwndBorderless(this.hwnd);
-        } else if (currentlyBorderless && !useBorderless) {
+        if (useBorderless) {
+            if (options.resizeableBorderless && (!currentlyResizeableBorderless || currentlyBorderless)) {
+                WindowStateUtil.undoHwndBorderless(this.hwnd);
+                WindowStateUtil.setHwndResizeableBorderless(this.hwnd);
+            } else if (!options.resizeableBorderless && !currentlyBorderless) {
+                WindowStateUtil.setHwndBorderless(this.hwnd);
+            }
+        } else if (currentlyBorderless || currentlyResizeableBorderless) {
             WindowStateUtil.undoHwndBorderless(this.hwnd);
         }
 
@@ -610,16 +628,23 @@ public class MinecraftInstance {
         this.ensureWindowState(
                 options.useBorderless,
                 // maximize if
-                (options.maximizeWhenResetting && !options.useBorderless),
+                (options.maximizeWhenResetting && (!options.useBorderless || options.resizeableBorderless)),
                 options.windowPosIsCenter ? WindowStateUtil.withTopLeftToCenter(bounds) : bounds,
                 offload);
+    }
+
+    public void ensureInitialWindowState() {
+        // ensure instance is unfullscreened and unminimized
+        this.ensureNotFullscreen();
+        User32.INSTANCE.ShowWindow(this.hwnd, User32.SW_NORMAL);
+        Julti.doLater(() -> this.ensureResettingWindowState(false));
     }
 
     public void ensurePlayingWindowState(boolean offload) {
         String a = UnaryOperator.<String>identity().apply("Mario");
         JultiOptions options = JultiOptions.getJultiOptions();
         Rectangle bounds = new Rectangle(options.windowPos[0], options.windowPos[1], options.playingWindowSize[0], options.playingWindowSize[1]);
-        boolean maximize = (options.maximizeWhenPlaying && !options.useBorderless) && (!options.autoFullscreen || options.usePlayingSizeWithFullscreen);
+        boolean maximize = (options.maximizeWhenPlaying && (!options.useBorderless || options.resizeableBorderless)) && (!options.autoFullscreen || options.usePlayingSizeWithFullscreen);
         this.ensureWindowState(
                 options.useBorderless,
                 maximize,
@@ -688,10 +713,14 @@ public class MinecraftInstance {
     }
 
     public void ensureNotFullscreen() {
+        JultiOptions options = JultiOptions.getJultiOptions();
+
         if ((!this.activeSinceReset) || (!this.isFullscreen())) {
             Julti.log(Level.DEBUG, "Skipping fullscreen check because " + (!this.activeSinceReset ? "the instance was not active" : "the instance is not in fullscreen"));
             return;
         }
+
+        int delay = 0;
 
         Julti.log(Level.DEBUG, "Pressing fullscreen key...");
         this.presser.pressKey(this.gameOptions.fullscreenKey);
@@ -699,6 +728,7 @@ public class MinecraftInstance {
         Julti.log(Level.DEBUG, "Waiting for fullscreen option to turn false...");
         do {
             sleep(5);
+            delay += 5;
         } while (this.isFullscreen());
 
         int i = 0;
@@ -707,8 +737,22 @@ public class MinecraftInstance {
         // Fullscreened MC windows are naturally borderless, and using isHwndBorderless works for checking this
         while (WindowStateUtil.isHwndBorderless(this.hwnd) && (i++ < 50)) {
             sleep(5);
+            delay += 5;
         }
+
+        int fullscreenDelay = Math.min(Math.max(0, options.fullscreenDelay), 250);
+        sleep(fullscreenDelay);
+
         Julti.log(Level.DEBUG, "ensureNotFullscreen complete (" + i + ")");
+        Julti.log(Level.DEBUG, "Estimated delay: " + delay + "ms + added delay of " + fullscreenDelay + "ms");
+    }
+
+    public KeyPresser getKeyPresser() {
+        return this.presser;
+    }
+
+    public long getLastActivation() {
+        return this.lastActivation;
     }
 
     public void logAndCopyInfo() {

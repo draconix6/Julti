@@ -20,6 +20,8 @@ public final class WindowStateUtil {
             | User32.WS_MAXIMIZEBOX
             | User32.WS_SYSMENU);
 
+    private static final int RESIZEABLE_BORDERLESS_STYLE = ~(User32.WS_BORDER | User32.WS_MINIMIZEBOX);
+
     private WindowStateUtil() {
     }
 
@@ -36,6 +38,12 @@ public final class WindowStateUtil {
         return styleWithBorderless == style;
     }
 
+    public static boolean isHwndResizeableBorderless(HWND hwnd) {
+        int style = getHwndStyle(hwnd);
+        int styleWithBorderless = style & RESIZEABLE_BORDERLESS_STYLE;
+        return styleWithBorderless == style;
+    }
+
     /**
      * Only checks the WS_BORDER value
      */
@@ -47,6 +55,12 @@ public final class WindowStateUtil {
     public static void setHwndBorderless(HWND hwnd) {
         int style = getHwndStyle(hwnd);
         style &= BORDERLESS_STYLE;
+        setHwndStyle(hwnd, style);
+    }
+
+    public static void setHwndResizeableBorderless(HWND hwnd) {
+        int style = getHwndStyle(hwnd);
+        style &= RESIZEABLE_BORDERLESS_STYLE;
         setHwndStyle(hwnd, style);
     }
 

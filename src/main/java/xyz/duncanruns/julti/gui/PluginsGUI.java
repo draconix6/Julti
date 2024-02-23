@@ -23,7 +23,8 @@ public class PluginsGUI extends JFrame {
     private JPanel panel;
 
     public PluginsGUI() {
-        this.setLocation(JultiGUI.getJultiGUI().getLocation());
+        Point location = JultiGUI.getJultiGUI().getLocation();
+        this.setLocation(location.x, location.y + 30);
         this.setupWindow();
         this.reload();
     }
@@ -31,6 +32,7 @@ public class PluginsGUI extends JFrame {
     private void setupWindow() {
         this.setLayout(null);
         this.setTitle("Julti Plugins");
+        this.setIconImage(JultiGUI.getLogo());
         this.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
@@ -78,7 +80,9 @@ public class PluginsGUI extends JFrame {
 
         List<LoadedJultiPlugin> loadedPlugins = PluginManager.getPluginManager().getLoadedPlugins();
         for (LoadedJultiPlugin loadedPlugin : loadedPlugins) {
-            this.panel.add(GUIUtil.leftJustify(new PluginPanel(loadedPlugin)));
+            if (loadedPlugin.pluginInitializer.showsInPluginsMenu()) {
+                this.panel.add(GUIUtil.leftJustify(new PluginPanel(loadedPlugin)));
+            }
         }
 
         if (loadedPlugins.isEmpty()) {

@@ -1,11 +1,13 @@
 package xyz.duncanruns.julti.plugin;
 
 import com.google.gson.Gson;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.Level;
 import xyz.duncanruns.julti.Julti;
 import xyz.duncanruns.julti.JultiOptions;
 import xyz.duncanruns.julti.util.ExceptionUtil;
 import xyz.duncanruns.julti.util.ResourceUtil;
+import xyz.duncanruns.julti.util.VersionUtil;
 
 import java.io.File;
 import java.io.IOException;
@@ -14,10 +16,7 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.List;
+import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
@@ -30,6 +29,7 @@ public final class PluginManager {
     private static final Path PLUGINS_PATH = JultiOptions.getJultiDir().resolve("plugins").toAbsolutePath();
 
     private final List<LoadedJultiPlugin> loadedPlugins = new ArrayList<>();
+    private final Set<String> pluginCollisions = new HashSet<>();
 
     private PluginManager() {
     }
@@ -58,7 +58,17 @@ public final class PluginManager {
             // -6 because of .class
             String className = je.getName().substring(0, je.getName().length() - 6);
             className = className.replace('/', '.');
-            cl.loadClass(className);
+            try {
+                cl.loadClass(className);
+            } catch (Error nce) {
+                // A fabric fail class is a class meant to crash loading with fabric. Useful to make sure players don't try to use Julti plugins as a fabric mod.
+                // Julti fails to load them since they refer to a class that doesn't exist, so we ignore it.
+                boolean isFabricFailClass = nce.getMessage().contains("net/fabricmc/api/ModInitializer");
+                if (!isFabricFailClass) {
+                    // If it is not a fabric fail class, we do want to warn for this
+                    Julti.log(Level.WARN, "Failed to load class '" + className + "'! Julti may crash if this is needed by a plugin...");
+                }
+            }
         }
 
         PluginInitializer pi = (PluginInitializer) cl.loadClass(initializer).newInstance();
@@ -75,29 +85,42 @@ public final class PluginManager {
         }
     }
 
+    private static void warnWontLoad(JultiPluginData oldData) {
+        Julti.log(Level.WARN, String.format("%s v%s will not load because it is not the newest version detected.", oldData.name, oldData.version));
+    }
+
+    public Set<String> getPluginCollisions() {
+        return Collections.unmodifiableSet(this.pluginCollisions);
+    }
+
     public List<LoadedJultiPlugin> getLoadedPlugins() {
         return Collections.unmodifiableList(this.loadedPlugins);
     }
 
-    public void loadPluginsFromFolder() throws IOException {
+    public List<Pair<Path, JultiPluginData>> getFolderPlugins() throws IOException {
         if (!Files.exists(PLUGINS_PATH)) {
-            return;
+            return Collections.emptyList();
         }
+        List<Pair<Path, JultiPluginData>> plugins = new ArrayList<>();
         try (Stream<Path> list = Files.list(PLUGINS_PATH)) {
             list.filter(path -> path.getFileName().toString().endsWith(".jar")).forEach(path -> {
                 try {
-                    this.checkPluginJar(path);
+                    JultiPluginData data = JultiPluginData.fromString(getJarJPJContents(path));
+                    plugins.add(Pair.of(path, data));
                 } catch (Throwable e) {
-                    Julti.log(Level.WARN, "Failed to load plugin " + path + "!\n" + ExceptionUtil.toDetailedString(e));
+                    Julti.log(Level.WARN, "Failed to read plugin " + path + "!\n" + ExceptionUtil.toDetailedString(e));
                 }
             });
         }
+        return plugins;
     }
 
-    private void loadDefaultPlugins() throws IOException, URISyntaxException {
+    private List<Pair<Path, JultiPluginData>> getDefaultPlugins() throws IOException, URISyntaxException {
         List<String> fileNames = ResourceUtil.getResourcesFromFolder("defaultplugins").stream().map(s -> "/defaultplugins/" + s).collect(Collectors.toList());
 
         Julti.log(Level.DEBUG, "Default Plugins:" + fileNames);
+
+        List<Pair<Path, JultiPluginData>> plugins = new ArrayList<>();
 
         for (String fileName : fileNames) {
             Path path = Paths.get(File.createTempFile(fileName, null).getPath());
@@ -106,36 +129,74 @@ public final class PluginManager {
             }
             ResourceUtil.copyResourceToFile(fileName, path);
             try {
-                this.checkPluginJar(path);
+                JultiPluginData data = JultiPluginData.fromString(getJarJPJContents(path));
+                plugins.add(Pair.of(path, data));
             } catch (Exception e) {
-                Julti.log(Level.ERROR, "Failed to load default plugin: " + fileName);
+                Julti.log(Level.ERROR, "Failed to read default plugin: " + fileName);
             }
         }
+        return plugins;
     }
 
     public void loadPlugins() {
+        List<Pair<Path, JultiPluginData>> folderPlugins = Collections.emptyList();
+        List<Pair<Path, JultiPluginData>> defaultPlugins = Collections.emptyList();
         try {
-            this.loadPluginsFromFolder();
+            folderPlugins = this.getFolderPlugins();
         } catch (IOException e) {
             Julti.log(Level.ERROR, "Failed to load plugins from folder: " + ExceptionUtil.toDetailedString(e));
         }
         try {
-            this.loadDefaultPlugins();
+            defaultPlugins = this.getDefaultPlugins();
         } catch (IOException | URISyntaxException e) {
             Julti.log(Level.ERROR, "Failed to load default plugins: " + ExceptionUtil.toDetailedString(e));
         }
+
+        // Mod ID -> path and data
+        Map<String, Pair<Path, JultiPluginData>> bestPluginVersions = new HashMap<>();
+
+        Stream.concat(folderPlugins.stream(), defaultPlugins.stream()).forEach(pair -> {
+            JultiPluginData data = pair.getRight();
+
+            if (bestPluginVersions.containsKey(data.id)) {
+                if (VersionUtil.tryCompare(data.version.split("\\+")[0], bestPluginVersions.get(data.id).getRight().version.split("\\+")[0], 0) > 0) {
+                    JultiPluginData oldData = bestPluginVersions.get(data.id).getRight();
+                    bestPluginVersions.put(data.id, pair);
+                    warnWontLoad(oldData);
+                } else {
+                    warnWontLoad(data);
+                }
+            } else {
+                bestPluginVersions.put(data.id, pair);
+            }
+        });
+
+        // Check already loaded plugins (which can only be dev plugins because default and folder aren't registered yet)
+        for (LoadedJultiPlugin loadedPlugin : this.getLoadedPlugins()) {
+            String loadedDevPluginID = loadedPlugin.pluginData.id;
+            if (bestPluginVersions.containsKey(loadedDevPluginID)) {
+                Pair<Path, JultiPluginData> removed = bestPluginVersions.remove(loadedDevPluginID);
+                JultiPluginData data = removed.getRight();
+                Julti.log(Level.WARN, String.format("%s v%s will not load because a dev plugin will be initialized instead.", data.name, data.version));
+            }
+        }
+
+        for (Map.Entry<String, Pair<Path, JultiPluginData>> entry : bestPluginVersions.entrySet()) {
+            try {
+                this.loadPluginJar(entry.getValue().getLeft(), entry.getValue().getRight());
+            } catch (Exception e) {
+                Julti.log(Level.ERROR, "Failed to load plugin from " + entry.getValue().getLeft() + ": " + ExceptionUtil.toDetailedString(e));
+            }
+        }
     }
 
-    /**
-     * Checks the plugin jar to see if it has a unique id, then loads its class files and runs its initializer.
-     */
-    private void checkPluginJar(Path path) throws Exception {
-        JultiPluginData jultiPluginData = JultiPluginData.fromString(getJarJPJContents(path));
+    private void loadPluginJar(Path path, JultiPluginData jultiPluginData) throws Exception {
         if (this.canRegister(jultiPluginData)) {
             PluginInitializer pluginInitializer = importJar(path.toFile(), jultiPluginData.initializer);
             this.registerPlugin(jultiPluginData, pluginInitializer);
         } else {
             Julti.log(Level.WARN, "Failed to load plugin " + path + ", because there is another plugin with the same id already loaded.");
+            this.pluginCollisions.add(jultiPluginData.id);
         }
     }
 
@@ -157,10 +218,10 @@ public final class PluginManager {
     }
 
     public static class JultiPluginData {
-        public final String name = null;
-        public final String id = null;
-        public final String version = null;
-        public final String initializer = null;
+        public String name = null;
+        public String id = null;
+        public String version = null;
+        public String initializer = null;
 
         public static JultiPluginData fromString(String string) {
             return GSON.fromJson(string, JultiPluginData.class);

@@ -1,3 +1,70 @@
+Changes in v1.3.0:
+- Support for new StandardSettings option `f3PauseOnWorldLoad`
+- Fix/tweaks to various warning messages
+- Tweaks to the program launcher options (@pants721 #88)
+- Added a `cancelif` command which can cancel scripts during execution, allowing for things like a reset hotkey that only works in the first 20 seconds
+- Updated Standard Manager to be a little less annoying
+- Script hotkeys can now be used even if some/all instances are closed
+
+Changes in v1.2.0:
+- Added a logo
+  - Kinda scuffed and temporary, but I don't imagine replacing it ever 
+- Updated PaceMan Tracker to v0.3.1
+- Add program launching (@pants721 #85)
+- Added tray icon and a minimize to tray icon option (@draconix6 #86)
+- Added "resizeable" borderless (weird version of borderless that you can manually resize) (@draconix6 #86)
+- Resource packs will now sync with "Sync Instances" button (@draconix6 #86)
+- Various tweaks and fixes
+
+Changes in v1.1.0:
+- Updated PaceMan Tracker to v0.3.0
+  - Update SpeedRunIGT to v14.1! 
+- Some new window settings buttons to optimize for various playstyles (@draconix6 #84)
+- Added more option descriptions (@draconix6 #84)
+- Removed "Reset All After Playing", it was a verification feature for non wall recorders, which is now no longer needed. (@draconix6 #84)
+- Removed other verification warnings because wall recording is no longer required. (@draconix6 #84)
+- LAUNCH plugin event (devs might care, you surely don't) (@pants721 #83)
+- Added `clearworlds` command
+- Various tweaks and fixes
+
+Changes in v1.0.2:
+- Updated PaceMan Tracker (a few bug fixes)
+
+Changes in v1.0.1:
+- Fix issue for computers using a comma for decimal formatting
+
+Changes in v1.0.0:
+- **Added PaceMan.gg support! Access the tracker through the plugins menu.**
+- Big changes to the OBS script (restart OBS after updating Julti!):
+  - Options that don't affect scene generation have been moved into Julti's options (see the OBS section).
+  - Added Multi scene generator into the main script (previously existed as a separate script). This generates a scene per instance so you can do silly transitions and stuff.
+  - Added `[Generation Option]` to the start of all generation options in the script, to make it obvious that they only take effect when pressing `Generate Scenes` again.
+  - Each instance in the Julti scene will generate with an instance number indicator at 15% opacity.
+  - Lock Display being stuck with example instances on should no longer happen.
+- Added a "Show Instance Number Indicators" option (found in OBS section). This is added along with all the options moved from the OBS script.
+- Added "Active Instance Scaling" for the align active instance option. This is mainly used for when the OBS canvas size does not match the monitor resolution.
+- Julti will now output a `currentlocation.txt` file in the `.Julti` folder, which is purely for the current instance number overlay in multi scenes.  
+- Standard Manager will now tell Julti to reload instance options whenever you change an option. This means changing Julti-related Minecraft keybinds using Standard Manager will work immediately.
+- Updated world clearing. The new conditions for a world to be deleted are:
+  - The world name must not start with "_" and must not contain a "Reset Safe.txt" file.
+  - The world name match a common speedrun world name (`New World...`, `Random/Set Speedrun #...`, `Practice Seed...`).
+  - The world must not be within the last 6 most recently played worlds (6 deletable worlds will be kept).
+- The Julti GUI will now show which instance is being played or was last played. (@draconix6 #78)
+- Added minimize projector experimental option. (@draconix6 #78)
+- Added detection for multiple Julti's to be open. (@draconix6 #78)
+- Various fixes and tweaks. (@draconix6 #77)
+  - Julti GUI is now forced back in bounds when it launches out of bounds.
+  - Coop mode will work a little better when not using bypass.
+- Added a "doaction" command which can replicate the exact functionality of hotkeys (the `reset all` command isn't exactly the same as full reset hotkey).
+- Added experimental option "Activate Projector On Reset" for bypass + thin BT users. (@draconix6 #79)
+- Added some option descriptions.(@draconix6 #79) 
+- Added various standard options warnings. (@draconix6 #79)
+- Added fullscreen delay experimental option. (@draconix6 #79)
+- Updated default scripts to contain a new launch + mega warmup script, and remove the old warmup script and the dragon fight script.
+- Added benchmark plugin as a default plugin.
+- Updated plugin loading to choose the newest version out of the default plugins and folder plugins.
+- Added "Package Files For Submission" option when right-clicking instances in the instances panel. This will collect necessary files for verification from that instance in one place. (@draconix6 #80)
+
 Changes in v0.22.0:
 - Added customizable delay between instance launches
 - Changed default affinity values
@@ -95,7 +162,7 @@ Changes in v0.17.1:
 - It turns out that for the past however many versions, julti has been using every reset method, meaning it has pressed the create new world key, leave preview key, and esc-shift-tab-enter to reset every instance every single time, so this has been fixed
 - When instances are detected, they will now quickly activate and receive a click input, which fixes mouse teleports and not being able to reset from title screen
 
-v0.17.0:
+Changes in v0.17.0:
 - Added Sounds (#5)
     - Settings are in the new Sound tab
     - Also added a playsound command
@@ -103,7 +170,7 @@ v0.17.0:
 - A fix for blazes and caves fix
 - Several refactors and nerd stuff
 
-v0.16.0:
+Changes in v0.16.0:
 - Completely rewritten OBS script and functionality (#45)
     - The lua script is now saved by Julti to your Documents folder and the .Julti folder
     - Only set names can be used, however everything can be set up with "Generate Scenes"
@@ -134,18 +201,18 @@ v0.16.0:
 - Fixed world load issues (#57)
 - Fixed unpause on switch issues
 
-v0.15.2:
+Changes in v0.15.2:
 - Various code refactors and optimizations
 - Julti now checks for a MultiMC instance config to get the instance name, helping to launch instances
 - Fix log reading for other languages (#47)
 - Now multi-threading log reading
 - Added fullscreen hotkey warning when the "Go Fullscreen" key is set to the same as the in-game key
 
-v0.15.1:
+Changes in v0.15.1:
 - Added a delay to world pause when pie chart is enabled
 - Added some more dirt cover checks to make it more stable
 
-v0.15.0:
+Changes in v0.15.0:
 - **Removed fullscreen mode** due to it being too slow and jank. Fullscreen can still be used during runs by using Julti's fullscreen hotkey. Refer to v0.14.0 patch notes.
 - Added support for instances that do not use the World Preview mod (will perhaps allow for stuff like pre-1.9 in the future) (#43)
 - Added Pie Chart On Load option, which is illegal for normal runs and is meant for superflat runs (apparently) (#42)
@@ -154,10 +221,10 @@ v0.15.0:
 - Fixed instances failing to reset sometimes (#41)
 - Fixed a bug where windows would lose their borderless-ness when resetting from a fullscreened window sometimes
 
-v0.14.1:
+Changes in v0.14.1:
 - Made a work-around for #41, but still not solved. You shouldn't have to restart instances or Julti to continue using an instance which is stuck.
 
-v0.14.0:
+Changes in v0.14.0:
 - Added some guide text to hotkey settings
 - Added fullscreen hotkey
     - Should not be the same as the actual fullscreen hotkey
@@ -166,11 +233,11 @@ v0.14.0:
 - Added option for Unpause on Switch (#40)
 - Removed brine
 
-v0.13.1:
+Changes in v0.13.1:
 - Now asking Windows where the mouse is because sometimes java doesn't have a good answer
 - Made resetting a fullscreened instance potentially less jank as frick
 
-v0.13.0:
+Changes in v0.13.0:
 - Added fullscreen mode (experimental)
 - Cleaned up a some built in wall code and options
 
@@ -181,16 +248,16 @@ v0.12.0:
 - Refactor dirt cover logic and potentially fix a dirt cover issue (#36)
 - Removed Hero
 
-v0.11.5:
+Changes in v0.11.5:
 - Removed auto clear worlds option, replacing with a clear worlds button on the main GUI
 - Sorted main menu buttons
 - Addeded Herobrine
 
-v0.11.4:
+Changes in v0.11.4:
 - Removed maximize option, now on by default for non-borderless
 - Added Herobrine
 
-v0.11.3:
+Changes in v0.11.3:
 - Overhauled the options GUI visuals
 - Julti GUI will now remember the location it was in when re-opened
 - Added more locations for auto-detecting MultiMC/Prism Launcher.

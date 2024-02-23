@@ -119,7 +119,12 @@ public final class GameOptionsUtil {
     }
 
     public static String getStandardOption(String optionName, Path path) {
-        if (!Files.exists(path)) {
+        try {
+            if (!Files.exists(path)) {
+                return null;
+            }
+        } catch (StackOverflowError e) {
+            Julti.log(Level.ERROR, "Error reading standardoptions.txt! Press Plugins > Open Standard Manager > Yes to try and fix your standardoptions.txt.");
             return null;
         }
 
@@ -133,6 +138,16 @@ public final class GameOptionsUtil {
 
         if (!out.contains("\n")) {
             if (out.endsWith(".txt")) {
+                if (out.contains(path.toString())) {
+                    Julti.log(Level.ERROR, path + " contains a path to itself! StandardSettings will not work.\r\n" +
+                            "To fix this:\r\n" +
+                            "- Press Instance Utilities > Close All Instances\r\n" +
+                            "- Delete standardoptions.txt on your desktop AND in instance 1's .minecraft/config folder\r\n" +
+                            "- Launch and close instance 1\r\n" +
+                            "- In Julti, press Plugins > Open Standard Manager > Yes > OK > Yes > Apply to All Instances, to fix your standardoptions.txt"
+                    );
+                    return null;
+                }
                 return getStandardOption(optionName, Paths.get(out));
             }
         }

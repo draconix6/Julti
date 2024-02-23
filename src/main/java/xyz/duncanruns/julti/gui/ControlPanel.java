@@ -87,7 +87,8 @@ public class ControlPanel extends JPanel {
                 public void actionPerformed(ActionEvent e) {
                     Thread.currentThread().setName("julti-gui");
                     SleepBGUtil.disableLock();
-                    Julti.doLater(() -> DoAllFastUtil.doAllFast(minecraftInstance -> minecraftInstance.ensureResettingWindowState(false)));
+                    // ensure instance is unfullscreened and unminimized
+                    Julti.doLater(() -> DoAllFastUtil.doAllFast(minecraftInstance -> minecraftInstance.ensureInitialWindowState()));
                 }
             });
 
@@ -110,6 +111,13 @@ public class ControlPanel extends JPanel {
                 }
             });
 
+            GUIUtil.addMenuItem(menu, "Launch Programs", new AbstractAction() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    LauncherUtil.launchPrograms();
+                }
+            });
+
             GUIUtil.addMenuItem(menu, "Sync Instances", new AbstractAction() {
                 @Override
                 public void actionPerformed(ActionEvent e) {
@@ -119,7 +127,7 @@ public class ControlPanel extends JPanel {
                     if (ans == 0) {
                         new Thread(() -> {
                             try {
-                                SyncUtil.sync(instances, instances.get(0), true, true);
+                                SyncUtil.sync(instances, instances.get(0), true, true, true);
                             } catch (IOException er) {
                                 log(Level.ERROR, "Failed to copy files:\n" + er);
                             }

@@ -21,6 +21,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -169,7 +170,7 @@ public final class GUIUtil {
             button.setText(scriptName + ": ...");
         });
 
-        JCheckBox checkBox = createCheckBox("", data.ignoreModifiers, aBoolean -> {
+        JCheckBox checkBox = createCheckBox("", "Allow Extra Keys (Ignore Ctrl/Shift/Alt)", data.ignoreModifiers, aBoolean -> {
             data.ignoreModifiers = !data.ignoreModifiers;
             Julti.waitForExecute(() -> JultiOptions.getJultiOptions().setScriptHotkey(data));
             reloadFunction.run();
@@ -178,8 +179,15 @@ public final class GUIUtil {
         return asHotkeyPanel(button, checkBox);
     }
 
-    public static JCheckBox createCheckBox(String label, boolean defaultValue, Consumer<Boolean> onValueChange) {
-        JCheckBox jCheckBox = new JCheckBox();
+    public static JCheckBox createCheckBox(String label, String desc, boolean defaultValue, Consumer<Boolean> onValueChange) {
+        AtomicInteger toolTipYOff = new AtomicInteger();
+        JCheckBox jCheckBox = new JCheckBox() {
+            @Override
+            public Point getToolTipLocation(MouseEvent event) {
+                Point point = event.getPoint();
+                return new Point(point.x + 10, point.y + toolTipYOff.get());
+            }
+        };
         jCheckBox.setSelected(defaultValue);
         jCheckBox.setAction(new AbstractAction() {
             @Override
@@ -187,13 +195,26 @@ public final class GUIUtil {
                 onValueChange.accept(jCheckBox.isSelected());
             }
         });
+
+        // Set tooltips if description is specified
+        if (!desc.isEmpty()) {
+            String text = label.isEmpty() ? "" : label + ": ";
+            text += desc;
+            FontMetrics fontMetrics = jCheckBox.getFontMetrics(jCheckBox.getFont());
+            int textPixLength = fontMetrics.stringWidth(text);
+            int maxWidth = 400;
+            int textHeight = fontMetrics.getHeight() * (textPixLength / maxWidth);
+            toolTipYOff.set(-textHeight - 25);
+            int width = Math.min(textPixLength, maxWidth);
+            jCheckBox.setToolTipText("<html><p width=\"" + width + "\">" + text + "</p></html>");
+        }
         jCheckBox.setText(label);
         return jCheckBox;
     }
 
     public static JComponent createHotkeyChangeButton(final String optionName, String hotkeyName, boolean includeIMOption) {
         JButton button = new JButton();
-        final String hotkeyPrefix = hotkeyName + (hotkeyName.equals("") ? "" : ": ");
+        final String hotkeyPrefix = hotkeyName + (hotkeyName.isEmpty() ? "" : ": ");
         button.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseReleased(MouseEvent e) {
@@ -224,23 +245,12 @@ public final class GUIUtil {
             return button;
         }
 
-        JCheckBox checkBox = createCheckBoxFromOption("", optionName + "IM", b -> HotkeyManager.getHotkeyManager().reloadHotkeys());
+        JCheckBox checkBox = createCheckBoxFromOption("", "Allow Extra Keys (Ignore Ctrl/Shift/Alt)", optionName + "IM", b -> HotkeyManager.getHotkeyManager().reloadHotkeys());
 
         return asHotkeyPanel(button, checkBox);
     }
 
     private static JPanel asHotkeyPanel(JButton button, JCheckBox checkBox) {
-        checkBox.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                checkBox.setText("Allow Extra Keys (Ignore Ctrl/Shift/Alt)");
-            }
-
-            @Override
-            public void mouseExited(MouseEvent e) {
-                checkBox.setText("");
-            }
-        });
         final JPanel panel = new JPanel();
         panel.setLayout(new GridLayoutManager(1, 3, new Insets(0, 0, 0, 0), -1, -1));
         panel.add(button, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
@@ -249,8 +259,8 @@ public final class GUIUtil {
         return panel;
     }
 
-    public static JCheckBox createCheckBoxFromOption(String label, String optionName, Consumer<Boolean> afterSet) {
-        return createCheckBox(label, (Boolean) JultiOptions.getJultiOptions().getValue(optionName), val -> {
+    public static JCheckBox createCheckBoxFromOption(String label, String desc, String optionName, Consumer<Boolean> afterSet) {
+        return createCheckBox(label, desc, (Boolean) JultiOptions.getJultiOptions().getValue(optionName), val -> {
             queueOptionChangeAndWait(optionName, val);
             if (afterSet != null) {
                 afterSet.accept(val);
@@ -258,8 +268,16 @@ public final class GUIUtil {
         });
     }
 
+    public static JCheckBox createCheckBoxFromOption(String label, String optionName, Consumer<Boolean> afterSet) {
+        return createCheckBoxFromOption(label, "", optionName, afterSet);
+    }
+
+    public static JCheckBox createCheckBoxFromOption(String label, String desc, String optionName) {
+        return createCheckBoxFromOption(label, desc, optionName, null);
+    }
+
     public static JCheckBox createCheckBoxFromOption(String label, String optionName) {
-        return createCheckBoxFromOption(label, optionName, null);
+        return createCheckBoxFromOption(label, "", optionName);
     }
 
     public static Component createSpacer() {
@@ -318,13 +336,10 @@ public final class GUIUtil {
         slider.setPaintLabels(true);
         slider.setPaintTicks(true);
         slider.setSnapToTicks(true);
-        slider.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseReleased(MouseEvent e) {
-                int newCurrent = slider.getValue();
-                queueOptionChangeAndWait(optionName, newCurrent / 100f);
-                label.setText("Volume (" + newCurrent + "%)");
-            }
+        slider.addChangeListener(e -> {
+            int newCurrent = slider.getValue();
+            queueOptionChangeAndWait(optionName, newCurrent / 100f);
+            label.setText("Volume (" + newCurrent + "%)");
         });
 
         GUIUtil.setActualSize(slider, 200, 23);
@@ -332,5 +347,14 @@ public final class GUIUtil {
         panel.add(label);
 
         return panel;
+    }
+
+    public static JPanel createActiveInstanceScalePanel() {
+        JPanel scalePanel = new JPanel();
+        scalePanel.setLayout(new BoxLayout(scalePanel, BoxLayout.X_AXIS));
+        scalePanel.add(new JLabel("Active Instance Scaling: "));
+        scalePanel.add(createValueChangerButton("centerAlignScaleX", "X", scalePanel));
+        scalePanel.add(createValueChangerButton("centerAlignScaleY", "Y", scalePanel));
+        return scalePanel;
     }
 }

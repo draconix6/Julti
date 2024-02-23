@@ -15,6 +15,8 @@ public final class PluginEvents {
         END_TICK,
         // Runs every reload, which is every profile change including the first load
         RELOAD,
+        // Runs when Julti is launched
+        LAUNCH,
         // Runs when Julti is shutting down
         STOP,
         // Runs every time the wall is activated
@@ -41,7 +43,9 @@ public final class PluginEvents {
         // Runs every time the instance is reset
         RESET,
         // Runs every time the instance's state changes
-        STATE_CHANGE;
+        STATE_CHANGE,
+        // Runs every time the instance's world generation percentage changes
+        PERCENTAGE_CHANGE;
 
 
         private final List<Consumer<MinecraftInstance>> consumers = new LinkedList<>();
