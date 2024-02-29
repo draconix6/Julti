@@ -159,13 +159,13 @@ public class MinecraftInstance {
             throw new RuntimeException(e);
         }
 
-        String wpVer = VersionUtil.extractVersion(FabricJarUtil.getJarInfo(this.gameOptions.jars, "worldpreview").version);
-        String soVer = VersionUtil.extractVersion(FabricJarUtil.getJarInfo(this.gameOptions.jars, "state-output").version);
+        String wpVer = VersionUtil.extractVersion(FabricJarUtil.getVersionOf(this.gameOptions.jars, "worldpreview"));
+        String soVer = VersionUtil.extractVersion(FabricJarUtil.getVersionOf(this.gameOptions.jars, "state-output"));
 
         boolean hasStateOutput = false;
-        if (VersionUtil.tryCompare(soVer, "0", 0) > 0) {
+        if (soVer != null && VersionUtil.tryCompare(soVer, "0", 0) > 0) {
             hasStateOutput = true;
-        } else if (VersionUtil.tryCompare(wpVer, "3.0.0", -1) >= 0 && VersionUtil.tryCompare(wpVer, "5.0.0", 0) < 0) {
+        } else if (wpVer != null && VersionUtil.tryCompare(wpVer, "3.0.0", -1) >= 0 && VersionUtil.tryCompare(wpVer, "5.0.0", 0) < 0) {
             hasStateOutput = true;
         }
 
@@ -496,7 +496,7 @@ public class MinecraftInstance {
 
 
     public boolean isFullscreen() {
-        if (MCVersionUtil.isOlderThan(this.versionString, "1.16")) {
+        if (MCVersionUtil.isOlderThan(this.versionString, "1.16") || MCVersionUtil.isNewerThan(this.versionString, "1.18.2")) {
             return this.activeSinceReset && JultiOptions.getJultiOptions().autoFullscreen && WindowStateUtil.isHwndBorderless(this.hwnd);
         } else {
             return GameOptionsUtil.tryGetBoolOption(this.getPath(), "fullscreen", false);
@@ -513,6 +513,7 @@ public class MinecraftInstance {
     }
 
     public void launch(String offlineName) {
+        this.ensureLaunchable();
         try {
             String multiMCPath = JultiOptions.getJultiOptions().multiMCPath;
             if (!multiMCPath.isEmpty()) {
@@ -527,6 +528,23 @@ public class MinecraftInstance {
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private void ensureLaunchable() {
+        this.ensureFullscreenOptionFalse();
+    }
+
+    private void ensureFullscreenOptionFalse() {
+        try {
+            Path optionsPath = this.path.resolve("options.txt");
+            String options = FileUtil.readString(optionsPath);
+            if (options.contains("fullscreen:true")) {
+                FileUtil.writeString(optionsPath, options.replace("fullscreen:true", "fullscreen:false"));
+                Julti.log(Level.DEBUG, "Instance " + this + " had fullscreen:true and was fixed by replacing it with fullscreen:false.");
+            }
+        } catch (IOException e) {
+            Julti.log(Level.ERROR, "Failed to ensure instance is launchable:\n" + ExceptionUtil.toDetailedString(e));
         }
     }
 
