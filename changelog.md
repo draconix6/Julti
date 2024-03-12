@@ -1,3 +1,25 @@
+Changes in v1.4.0:
+- Added JuWaWi as a default plugin
+  - JuWaWi (Julti Wall Window) provides a way to use Julti without having to open or set up OBS (or even have it installed)
+  - Works with any wall style (should even work with draconix's custom wall plugin)
+  - Customizable colors and slightly configurable locks (locks are just a border drawn on top of the instance with custom thickness and color)
+  - Configuration saves to Julti profiles
+  - Not as good as an OBS projector
+    - Doesn't render instances at 60FPS, instead having no FPS and drawing single frames of instances at a time when they reach certain states
+    - No custom images for locks or background, just basic shapes and solid colors only
+- Added scripts action menu (right click scripts for more stuff)
+  - Added script editing (@pants721 #91)
+- Added illegal mod checker (will appear as warnings in log, you can ignore them if playing something like icarus)
+- Added more sounds (bone sounds, specnr sounds)
+- Added basic sound randomization (selecting a folder will pick a random sound from the folder)
+- Move warnings for invalid states to debug messages
+- Fullscreen fix for 1.19+ (@draconix6 #90)
+- Prevent instances from launching in fullscreen (sets `fullscreen:false` in options.txt before launch)
+- Fix instance detection for weird legacy versions
+- Update benchmark plugin
+- Added lots of stuff for plugins to use, including saving custom data into Julti profiles
+- Various tweaks/fixes
+
 Changes in v1.3.1:
 - Hotfix for Julti crashing when state output/world preview is not present
 

@@ -141,7 +141,8 @@ public final class Julti {
         ResetHelper.getManager().reload();
         ResetCounter.updateFiles();
         PluginEvents.RunnableEventType.RELOAD.runAll();
-
+        // Trigger plugin data loaders
+        JultiOptions.getJultiOptions().triggerPluginDataLoaders();
     }
 
     private void changeOption(QMessage message) {
@@ -183,6 +184,7 @@ public final class Julti {
         if (isRanFromAlternateLocation()) {
             log(Level.INFO, "Julti is being ran from another location");
         }
+        new Thread(LegalModsUtil::updateLegalMods, "legal-mods-updater").start();
 
         // Schedule stuff for after Julti startup processes
         Julti.doLater(() -> {

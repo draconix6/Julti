@@ -106,7 +106,7 @@ public final class GUIUtil {
         menu.add(item);
     }
 
-    public static JComponent createFileSelectButton(final Component parent, final String optionName, final String fileType, Path startingLocation) {
+    public static JComponent createFileSelectButton(final Component parent, final String optionName, final String fileType, Path startingLocation, boolean allowFoldersToo) {
         final JultiOptions options = JultiOptions.getJultiOptions();
 
         String currentValue = options.getValueString(optionName);
@@ -128,7 +128,7 @@ public final class GUIUtil {
         });
         button.addActionListener(e -> {
             JFileChooser jfc = new JFileChooser();
-            jfc.setFileSelectionMode(JFileChooser.FILES_ONLY);
+            jfc.setFileSelectionMode(allowFoldersToo ? JFileChooser.FILES_AND_DIRECTORIES : JFileChooser.FILES_ONLY);
             jfc.setDialogTitle("Julti: Choose Files");
             jfc.setAcceptAllFileFilterUsed(false);
             jfc.addChoosableFileFilter(new FileNameExtensionFilter(fileType, fileType));
@@ -219,10 +219,11 @@ public final class GUIUtil {
             @Override
             public void mouseReleased(MouseEvent e) {
                 if (e.getButton() == 3) {
+                    // Clear hotkey on right click
                     Hotkey hotkey = Hotkey.empty();
                     queueOptionChangeAndWait(optionName, hotkey.getKeys());
-
                     button.setText(hotkeyPrefix + Hotkey.formatKeys(hotkey.getKeys()));
+                    HotkeyManager.getHotkeyManager().reloadHotkeys();
                 }
             }
         });

@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.function.UnaryOperator;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -179,6 +178,20 @@ public class MinecraftInstance {
             Julti.log(Level.WARN, "Warning: Instance \"" + this + " does not have the standard settings mod!");
         }
 
+        this.checkModsAreLegal();
+    }
+
+    private void checkModsAreLegal() {
+        if (!LegalModsUtil.hasUpdated()) {
+            Julti.doLater(this::checkModsAreLegal);
+            return;
+        }
+
+        for (FabricJarUtil.FabricJarInfo jar : this.gameOptions.jars) {
+            if (!LegalModsUtil.isLegalMod(jar.id)) {
+                Julti.log(Level.WARN, "Warning: Mod " + jar.name + " is not a legal mod!");
+            }
+        }
     }
 
     private void discoverName() {
@@ -649,6 +662,7 @@ public class MinecraftInstance {
                 (options.maximizeWhenResetting && (!options.useBorderless || options.resizeableBorderless)),
                 options.windowPosIsCenter ? WindowStateUtil.withTopLeftToCenter(bounds) : bounds,
                 offload);
+        this.windowStateChangedToPlaying = false;
     }
 
     public void ensureInitialWindowState() {
@@ -659,7 +673,6 @@ public class MinecraftInstance {
     }
 
     public void ensurePlayingWindowState(boolean offload) {
-        String a = UnaryOperator.<String>identity().apply("Mario");
         JultiOptions options = JultiOptions.getJultiOptions();
         Rectangle bounds = new Rectangle(options.windowPos[0], options.windowPos[1], options.playingWindowSize[0], options.playingWindowSize[1]);
         boolean maximize = (options.maximizeWhenPlaying && (!options.useBorderless || options.resizeableBorderless)) && (!options.autoFullscreen || options.usePlayingSizeWithFullscreen);
@@ -694,7 +707,7 @@ public class MinecraftInstance {
             this.presser.pressTab(2);
         }
         this.presser.pressEnter();
-        this.presser.pressTab();
+        this.presser.pressTab(MCVersionUtil.isNewerThan(this.versionString, "1.19.2") ? 2 : 1);
         this.presser.pressEnter();
         this.openedToLan = true;
     }
@@ -767,6 +780,10 @@ public class MinecraftInstance {
 
     public KeyPresser getKeyPresser() {
         return this.presser;
+    }
+
+    public GameOptions getGameOptions() {
+        return this.gameOptions;
     }
 
     public long getLastActivation() {

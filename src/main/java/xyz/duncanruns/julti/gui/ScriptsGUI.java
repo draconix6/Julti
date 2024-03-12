@@ -32,7 +32,7 @@ public class ScriptsGUI extends JFrame {
                 ScriptsGUI.this.onClose();
             }
         });
-        this.setSize(490, 500);
+        this.setSize(410, 500);
         this.setVisible(true);
         this.panel = new JPanel();
         this.panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -61,6 +61,7 @@ public class ScriptsGUI extends JFrame {
 
         this.panel.add(GUIUtil.createSpacer(15));
 
+        this.panel.add(GUIUtil.leftJustify(new JLabel("(Right click for action menu)")));
         for (String name : ScriptManager.getScriptNames()) {
             this.panel.add(GUIUtil.leftJustify(new ScriptPanel(name, ScriptManager.getHotkeyContext(name), this::reload)));
         }
